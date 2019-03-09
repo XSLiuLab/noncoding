@@ -1,8 +1,8 @@
 # 获取区间突变
 get_reg_mution = function(mutation_file, region_file, result_file)
 {
-  temp1 <- paste("sorted_", mutation_file, sep = "")
-  temp2 <- paste("sorted_", region_file, sep = "")
+  temp1 <- paste("sorted_", basename(mutation_file), sep = "")
+  temp2 <- paste("sorted_", basename(region_file), sep = "")
   
   cmd1 <- paste("sort -k 1,1 -k 2,2n ",mutation_file," > ",temp1, sep = "")
   cmd2 <- paste("sort -k 1,1 -k 2,2n ",region_file," > ",temp2, sep = "")

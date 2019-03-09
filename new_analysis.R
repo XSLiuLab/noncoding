@@ -86,6 +86,16 @@ region.promoter = "clean_promoter.bed"
 # 减去高免疫突变区
 system(paste0("bedtools subtract -a ", region.noncoding, " -b ", 
                region.promoter, " > clean_non_promoter.bed"))
+region.nonpromoter = "clean_non_promoter.bed"
 
 
+# 获取突变 --------------------------------------------------------------------
+region.coding = "clean_cds.bed"
+region.noncoding = "../icgc_data/hg19_map_nonmask_region.bed"
+region.promoter = "clean_promoter.bed"
+region.nonpromoter = "clean_non_promoter.bed"
 
+get_reg_mution(original_bed, region.coding, "mut_coding.bed")
+get_reg_mution(original_bed, region.noncoding, "mut_noncoding.bed")
+get_reg_mution(original_bed, region.promoter, "mut_promoter.bed")
+get_reg_mution(original_bed, region.nonpromoter, "mut_nonpromoter.bed")
