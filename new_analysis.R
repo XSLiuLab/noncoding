@@ -1,0 +1,91 @@
+# New Analysis BEGIN ------------------------------------------------------
+# 计算1Mbp区间内突变频率与遗传、表观注释值的相关性
+# Coding, Noconding, Promoter ...
+# Coding为外显子区域
+
+setwd("~/New_Analysis/")
+source("functions.R")
+library(data.table)
+Sys.setenv(PATH=paste0("/home/zhangjing/bedtools2/bin:", Sys.getenv("PATH")))
+
+# 预处理数据 -------------------------------------------------------------------
+
+original_mut = "../icgc_data/预处理所有突变.tsv"    # 经过预处理过的突变记录文件
+original_bed = "../icgc_data/rmSNP_single_mut.bed"  # SNV并移除超过比例SNP位点的区域
+hyperImmuRegion = "../icgc_data/merged_sorted_extended_merged_sort_chr_immu_region_from_gtf.bed"
+
+
+# 编码区 ---------------------------------------------------------------------
+# 外显子移除高变免疫区
+
+# 获取编码区
+get_cds_region("../predict_prob/Homo_sapiens.GRCh37.75.gtf")
+gc()
+# merge，以防重叠区间
+system("sort -k 1,1 -k 2,2n cds_region.bed > sorted_cds_region.bed")
+#Sys.getenv("PATH")
+system("bedtools merge -i sorted_cds_region.bed > merged_sorted_cds_region.bed")
+file.remove("sorted_cds_region.bed")
+
+# 减去高免疫突变区
+system(paste0("bedtools subtract -a merged_sorted_cds_region.bed -b ",
+              hyperImmuRegion, " > clean_cds.bed"))
+
+region.coding = "clean_cds.bed"
+
+# 非编码区 --------------------------------------------------------------------
+region.noncoding = "../icgc_data/hg19_map_nonmask_region.bed"
+
+# Promoter 区 --------------------------------------------------------------
+# 选取-2500 到 +500 作为启动子区域
+up_site = 2500
+down_site = 500
+##过滤数据
+gtf_ensmble <- fread("../predict_prob/Homo_sapiens.GRCh37.75.gtf", 
+                     sep = "\t", colClasses=list(character= 1))
+names(gtf_ensmble)[1] <- "V1"
+ensmble_pro_cod <- gtf_ensmble[gtf_ensmble$V2 == "protein_coding",] #选择仅仅是蛋白质编码的转录本
+transcript_pro_cod_ensmble <- ensmble_pro_cod[ensmble_pro_cod$V3 == "transcript",]          ##########从转录本中选取总的转录本区间
+options(scipen=30)
+chr_index <- c(c(1:22),"X","Y")
+chr_trans_pro <- transcript_pro_cod_ensmble[transcript_pro_cod_ensmble$V1 %in% chr_index, ] #仅仅挑选chr1:22 + X + Y 染色体
+##从SST获取up_site到down_site的区间
+pos_trans_chr_gtf <- chr_trans_pro[chr_trans_pro$V7 == "+",]
+neg_trans_chr_gtf <- chr_trans_pro[chr_trans_pro$V7 == "-",]
+pos_chr <- paste("chr",pos_trans_chr_gtf$V1, sep = "")
+pos_start <- pos_trans_chr_gtf$V4 - up_site
+pos_end <- pos_trans_chr_gtf$V4 + down_site
+pos_bed <- data.frame(pos_chr, pos_start, pos_end)
+names(pos_bed) <- c("chr","start","end")
+
+neg_chr <- paste("chr",neg_trans_chr_gtf$V1, sep = "")
+neg_start <- neg_trans_chr_gtf$V5 + up_site
+neg_end <- neg_trans_chr_gtf$V5 - down_site
+neg_bed <- data.frame(neg_chr, neg_end, neg_start)
+names(neg_bed) <- c("chr","start","end")
+
+promoter_region <- rbind(pos_bed, neg_bed)
+promoter_region$index <- 1
+write.table(promoter_region,"promoter_region.bed", sep = "\t", row.names = F, col.names = F,quote = F)
+
+# 同样地，去掉重叠以及高免疫突变区
+# merge，以防重叠区间
+system("sort -k 1,1 -k 2,2n promoter_region.bed > sorted_promoter_region.bed")
+system("bedtools merge -i sorted_promoter_region.bed > merged_sorted_promoter_region.bed")
+file.remove("sorted_promoter_region.bed")
+
+# 减去高免疫突变区
+system(paste0("bedtools subtract -a merged_sorted_promoter_region.bed -b ",
+              hyperImmuRegion, " > clean_promoter.bed"))
+
+region.promoter = "clean_promoter.bed"
+
+# 非Promoter的noncoding区 ----------------------------------------------------
+# noncoding区间除了Promoter之外的区间
+
+# 减去高免疫突变区
+system(paste0("bedtools subtract -a ", region.noncoding, " -b ", 
+               region.promoter, " > clean_non_promoter.bed"))
+
+
+
