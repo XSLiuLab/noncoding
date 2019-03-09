@@ -99,3 +99,74 @@ get_reg_mution(original_bed, region.coding, "mut_coding.bed")
 get_reg_mution(original_bed, region.noncoding, "mut_noncoding.bed")
 get_reg_mution(original_bed, region.promoter, "mut_promoter.bed")
 get_reg_mution(original_bed, region.nonpromoter, "mut_nonpromoter.bed")
+
+
+
+# 计算突变的各种注释结果 -------------------------------------------------------------
+
+###获取 noncoding_mut_site.bed 文件的三碱基
+single_site <- fread("noncoding_mut_site.bed")
+single_site$V2 <- single_site$V2 - 1
+single_site$V3 <- single_site$V3 + 1
+write.table(single_site, "three_base.bed", sep = "\t", row.names = F, col.names = F, quote = F)
+
+pos_fasta("three_base.bed","hg19.fasta","noncoding_three_base.bed")
+file.remove("three_base.bed")
+
+
+three_site <- fread("noncoding_three_base.bed")
+three_site$V2 <- three_site$V2 + 1
+three_site$V3 <- three_site$V3 - 1
+three_site$V6 <- toupper(three_site$V6)
+
+base_type <- fread("base.tsv")
+merge_result <- merge(three_site, base_type, by.x = "V6", by.y = "V1")
+result <- merge_result[,c(2:6,1,7)]
+write.table(result, "noncoding_mut_site_3basetype.bed", sep = "\t", row.names = F, col.names = F, quote = F)
+
+
+###获取 noncoding_mut_site_3basetype.bed 文件的复制时间
+pos_anno("noncoding_mut_site_3basetype.bed","average_reptime_14celllines.bed","noncoding_mut_site_3basetype_reptime.bed")
+
+rep_value <- fread("noncoding_mut_site_3basetype_reptime.bed")
+rep_value <- rep_value[rep_value$V8 != ".",]
+write.table(rep_value, "noncoding_mut_site_3basetype_reptime.bed", sep = "\t", row.names = F, quote = F, col.names = F)
+
+
+###获取 noncoding_mut_site_3basetype_reptime.bed 文件的tfbs
+tfbs <- fread("wgEncodeRegTfbsClusteredWithCellsV3.bed")
+bed <- tfbs[,c(1:3,5)]
+write.table(bed,"TFBS_value.bed", sep = "\t", col.names = F, row.names = F, quote = F)
+
+pos_anno("noncoding_mut_site_3basetype_reptime.bed","TFBS_value.bed","noncoding_mut_site_3basetype_reptime_tfbs.bed")
+tfbs_value <- fread("noncoding_mut_site_3basetype_reptime_tfbs.bed")
+tfbs_value$V9[tfbs_value$V9 == "."] <- 0
+write.table(tfbs_value, "noncoding_mut_site_3basetype_reptime_tfbs.bed", sep = "\t", row.names = F, quote = F, col.names = F)
+
+
+
+###获取 noncoding_mut_site_3basetype_reptime_tfbs.bed 文件位点的保守性值
+pos_anno("noncoding_mut_site_3basetype_reptime_tfbs.bed","hg19.100way.phastCons.bw","noncoding_mut_site_3basetype_reptime_tfbs_cons.bed")
+
+
+###获取 noncoding_mut_site_3basetype_reptime_tfbs.bed 文件位点的GC含量（1kb）
+system("sort -k 1,1 -k 2,2n hg19_gc1kb.bed > sorted_hg19_gc1kb.bed")
+gc <- fread("sorted_hg19_gc1kb.bed")
+gc <- gc[gc$V5!= ".",]
+write.table(gc, "sorted_hg19_gc1kb.bed", sep = "\t", row.names = F, col.names = F, quote = F)
+system("bedtools map -a noncoding_mut_site_3basetype_reptime_tfbs_cons.bed -b sorted_hg19_gc1kb.bed -c 5 -o mean > noncoding_mut_site_3basetype_reptime_tfbs_cons_gc.bed")
+
+file.remove("sorted_hg19_gc1kb.bed")
+
+#？？？
+system("sort -k 1,1 -k 2,2n promoter_region.bed > sorted_promoter_region.bed")
+system("bedtools map -a noncoding_mut_site_3basetype_reptime_tfbs_cons_gc.bed -b sorted_promoter_region.bed -c 4 -o mean > noncoding_mut_site_3basetype_reptime_tfbs_cons_gc_promoter.bed")
+
+pro <- fread("noncoding_mut_site_3basetype_reptime_tfbs_cons_gc_promoter.bed")
+pro$V12[pro$V12 == "."] <- "N"
+pro$V12[pro$V12 == 1] <- "Y"
+write.table(pro, "noncoding_mut_site_3basetype_reptime_tfbs_cons_gc_promoter.bed", sep = "\t", row.names = F, col.names = F, quote = F)
+
+
+file.remove("promoter_region.bed","sorted_promoter_region.bed")
+
