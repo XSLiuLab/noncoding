@@ -13,6 +13,27 @@ get_reg_mution = function(mutation_file, region_file, result_file)
   file.remove(temp1, temp2)
 }
 
+# 计算区间突变数
+get_reg_mution_number = function(mutation_file, region_file, result_file){
+  ###将每个突变后面添加数字1
+  mut <- fread(mutation_file, data.table = F)
+  mut$V4 <- 1
+  tempmut = paste0("temp_", mutation_file)
+  write.table(mut, tempmut, sep = "\t", row.names = F, col.names = F, quote = F)
+  
+  ###计算每MB区间内的突变次数
+  system(paste0("bedtools map -a ", region_file, " -b ", tempmut, 
+         " -c 4 > ", result_file))
+  file.remove(tempmut)
+  
+  ###删除缺失值
+  mut_num <- read.table(result_file, stringsAsFactors = F)
+  mut_num <- mut_num[mut_num$V5 != ".",]
+  mut_num$V5 <- as.numeric(mut_num$V5)
+  write.table(mut_num, result_file, sep = "\t", row.names = F, col.names = F, quote = F)
+}
+
+
 
 #获取CDS的外显子区域
 get_cds_region <- function(gtf)
@@ -69,5 +90,31 @@ pos_anno <- function(pos_file, anno_file, result_file)
   
   file.remove(temp1, "pos_index", "index_value")
 }
+
+
+###将hg19基因组分割为不同区间的片段
+get_region_bed <- function(region_length)
+{
+  hg19_chr <- data.table::fread("human.hg19.genome", header = FALSE, data.table = FALSE)
+  #hg19_chr <- read.table("human_genome_chromosome_length.tsv", header = F)
+  
+  chr <- as.character(unique(hg19_chr$V1))
+  chr_list <- vector("list", length = length(chr))
+  names(chr_list)  <- chr
+  
+  for(i in chr)
+  {
+    end_pos <- hg19_chr[hg19_chr$V1 == i,]$V2
+    df_end <- seq(0, end_pos, region_length)[-1]
+    df_start <- df_end - region_length
+    df_chr <- as.character(hg19_chr[hg19_chr$V1 == i,]$V1)
+    df <- data.frame(df_chr, df_start, df_end)
+    chr_list[[i]] <- df
+  }
+  
+  result <- do.call("rbind", chr_list)
+  result$name <- 1:dim(result)[1]
+  write.table(result, paste0("hg19_mb_", region_length/1000000L, "M.bed"), sep = "\t", row.names = F, quote = F, col.names = F)
+}  
 
 
