@@ -112,10 +112,10 @@ get_reg_mution_number("mut_nonpromoter.bed", "sorted_hg19_1M.bed", "1M_mut_nonpr
 # 计算突变的各种注释结果 -------------------------------------------------------------
 
 #########获取不同区间大小的保守性数值########
-~/bigWigAverageOverBed hg19.100way.phastCons.bw sort_hg19_mb.bed conservation_Mb.bed
+~/bigWigAverageOverBed hg19.100way.phastCons.bw sorted_hg19_1M.bed conservation_Mb.bed
 
 ##########计算每个区间内CpG岛的长度#########
-bedtools map -a sort_hg19_mb.bed -b  sort_cpg_length.bed  -c 4 -o sum >  CpG_length_sum_Mb.bed
+bedtools map -a sorted_hg19_1M.bed -b  sort_cpg_length.bed  -c 4 -o sum >  CpG_length_sum_Mb.bed
 
 files <- c("CpG_length_sum_Mb.bed")
 read_file <- vector("list", length = 1)
@@ -169,38 +169,38 @@ write.table(read_file$CpG_length_sum_Mb.bed,"CpG_percent_Mb.bed",
   
   
   #对 Mb 区间计算GC平均值（开多个终端，同时运算）
-  bedtools map -a sort_hg19_mb.bed -b  chr1_gc5base.bed  -c 4 -o mean >  chr1_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr2_gc5base.bed  -c 4 -o mean >  chr2_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr3_gc5base.bed  -c 4 -o mean >  chr3_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr1_gc5base.bed  -c 4 -o mean >  chr1_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr2_gc5base.bed  -c 4 -o mean >  chr2_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr3_gc5base.bed  -c 4 -o mean >  chr3_gcMb.bed
   
-  bedtools map -a sort_hg19_mb.bed -b  chr4_gc5base.bed  -c 4 -o mean >  chr4_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr5_gc5base.bed  -c 4 -o mean >  chr5_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr6_gc5base.bed  -c 4 -o mean >  chr6_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr4_gc5base.bed  -c 4 -o mean >  chr4_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr5_gc5base.bed  -c 4 -o mean >  chr5_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr6_gc5base.bed  -c 4 -o mean >  chr6_gcMb.bed
   
-  bedtools map -a sort_hg19_mb.bed -b  chr7_gc5base.bed  -c 4 -o mean >  chr7_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr8_gc5base.bed  -c 4 -o mean >  chr8_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr9_gc5base.bed  -c 4 -o mean >  chr9_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr7_gc5base.bed  -c 4 -o mean >  chr7_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr8_gc5base.bed  -c 4 -o mean >  chr8_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr9_gc5base.bed  -c 4 -o mean >  chr9_gcMb.bed
   
-  bedtools map -a sort_hg19_mb.bed -b  chr10_gc5base.bed  -c 4 -o mean >  chr10_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr11_gc5base.bed  -c 4 -o mean >  chr11_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr12_gc5base.bed  -c 4 -o mean >  chr12_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr10_gc5base.bed  -c 4 -o mean >  chr10_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr11_gc5base.bed  -c 4 -o mean >  chr11_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr12_gc5base.bed  -c 4 -o mean >  chr12_gcMb.bed
   
-  bedtools map -a sort_hg19_mb.bed -b  chr13_gc5base.bed  -c 4 -o mean >  chr13_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr14_gc5base.bed  -c 4 -o mean >  chr14_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr15_gc5base.bed  -c 4 -o mean >  chr15_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr13_gc5base.bed  -c 4 -o mean >  chr13_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr14_gc5base.bed  -c 4 -o mean >  chr14_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr15_gc5base.bed  -c 4 -o mean >  chr15_gcMb.bed
   
   
-  bedtools map -a sort_hg19_mb.bed -b  chr16_gc5base.bed  -c 4 -o mean >  chr16_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr17_gc5base.bed  -c 4 -o mean >  chr17_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr18_gc5base.bed  -c 4 -o mean >  chr18_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr16_gc5base.bed  -c 4 -o mean >  chr16_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr17_gc5base.bed  -c 4 -o mean >  chr17_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr18_gc5base.bed  -c 4 -o mean >  chr18_gcMb.bed
   
-  bedtools map -a sort_hg19_mb.bed -b  chr19_gc5base.bed  -c 4 -o mean >  chr19_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr20_gc5base.bed  -c 4 -o mean >  chr20_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chr21_gc5base.bed  -c 4 -o mean >  chr21_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr19_gc5base.bed  -c 4 -o mean >  chr19_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr20_gc5base.bed  -c 4 -o mean >  chr20_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr21_gc5base.bed  -c 4 -o mean >  chr21_gcMb.bed
   
-  bedtools map -a sort_hg19_mb.bed -b  chr22_gc5base.bed  -c 4 -o mean >  chr22_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chrX_gc5base.bed  -c 4 -o mean >  chrX_gcMb.bed
-  bedtools map -a sort_hg19_mb.bed -b  chrY_gc5base.bed  -c 4 -o mean >  chrY_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chr22_gc5base.bed  -c 4 -o mean >  chr22_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chrX_gc5base.bed  -c 4 -o mean >  chrX_gcMb.bed
+  bedtools map -a sorted_hg19_1M.bed -b  chrY_gc5base.bed  -c 4 -o mean >  chrY_gcMb.bed
   
   #合并每条染色体结果（将上述不同长度区间的文件分别放入不同文件夹）
   files <- list.files()
@@ -241,24 +241,24 @@ write.table(read_file$CpG_length_sum_Mb.bed,"CpG_percent_Mb.bed",
   ./bedGraphToBigWig mean_tfbs.bed hg19_chr_size.bed tfbs.bigwig
   
   ###分别计算1Mb区间长度上的转录因子结合位点数值
-  ./bigWigAverageOverBed tfbs.bigwig sort_hg19_mb.bed tfbs_mb.bed
+  ./bigWigAverageOverBed tfbs.bigwig sorted_hg19_1M.bed tfbs_mb.bed
   
 }
 
 
 ##########复制时间##########################
 {
-  bedtools map -a sort_hg19_mb.bed -b sort_average_reptime_14celllines.bed  -c 4 -o mean >  reptime_Mb.bed
+  bedtools map -a sorted_hg19_1M.bed -b sort_average_reptime_14celllines.bed  -c 4 -o mean >  reptime_Mb.bed
 }
 
 
 ##########POLII############################
 {
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsK562Pol2s2StdSig.bigWig  sort_hg19_mb.bed  k562_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsMcf10aesPol2Etoh01StdSig.bigWig  sort_hg19_mb.bed Mcf10aes_Etoh01_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsMcf10aesPol2TamStdSig.bigWig  sort_hg19_mb.bed Mcf10aes_Tam_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsPbdePol2UcdSig.bigWig  sort_hg19_mb.bed Pbde_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsRajiPol2UcdSig.bigWig  sort_hg19_mb.bed Raji_pol2_Mb.bed
+  ./bigWigAverageOverBed  wgEncodeSydhTfbsK562Pol2s2StdSig.bigWig  sorted_hg19_1M.bed  k562_pol2_Mb.bed
+  ./bigWigAverageOverBed  wgEncodeSydhTfbsMcf10aesPol2Etoh01StdSig.bigWig  sorted_hg19_1M.bed Mcf10aes_Etoh01_pol2_Mb.bed
+  ./bigWigAverageOverBed  wgEncodeSydhTfbsMcf10aesPol2TamStdSig.bigWig  sorted_hg19_1M.bed Mcf10aes_Tam_pol2_Mb.bed
+  ./bigWigAverageOverBed  wgEncodeSydhTfbsPbdePol2UcdSig.bigWig  sorted_hg19_1M.bed Pbde_pol2_Mb.bed
+  ./bigWigAverageOverBed  wgEncodeSydhTfbsRajiPol2UcdSig.bigWig  sorted_hg19_1M.bed Raji_pol2_Mb.bed
   
   setwd("/home/zhangjing/paper/icgc_download/polII/10kb")
   files <- list.files()
