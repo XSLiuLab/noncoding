@@ -41,7 +41,7 @@ system("bedtools complement -i sorted_cds_region.bed -g sorted_human.hg19.genome
 ###获取非编码区上的所有突变
 mut <- fread("预处理所有突变.tsv", data.table = F)
 pos_mut <- mut[mut$type == "single base substitution",]
-###以bed格式输出所有单碱基突变 （该代码有问题？）
+###以bed格式输出所有单碱基突变 
 mut_bed <- pos_mut[,3:5]
 mut_bed$start <- mut_bed$start - 1
 write.table(mut_bed, "single_mut.bed", sep = "\t", row.names = F, quote = F, col.names = F)

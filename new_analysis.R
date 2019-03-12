@@ -25,7 +25,6 @@ if (F) {
 }
 
 # 编码区 ---------------------------------------------------------------------
-# 外显子移除高变免疫区
 
 get_cds_region("../predict_prob/Homo_sapiens.GRCh37.75.gtf")
 gc()
@@ -111,173 +110,183 @@ get_reg_mution_number("mut_nonpromoter.bed", "sorted_hg19_1M.bed", "1M_mut_nonpr
 
 # 计算突变的各种注释结果 -------------------------------------------------------------
 
-#########获取不同区间大小的保守性数值########
-~/bigWigAverageOverBed hg19.100way.phastCons.bw sorted_hg19_1M.bed conservation_Mb.bed
+# 这里取自师兄之前的结果
+# 下载原数据
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/mutation_counts_mb.tsv",
+              destfile = "mutation_counts_mb.tsv")
+# CpG
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/CpG_percent_Mb.bed",
+              destfile = "CpG_percent_Mb.bed")
+# GC
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/hg19_gcMb.bed",
+              destfile = "hg19_gcMb.bed")
 
-##########计算每个区间内CpG岛的长度#########
-bedtools map -a sorted_hg19_1M.bed -b  sort_cpg_length.bed  -c 4 -o sum >  CpG_length_sum_Mb.bed
+# Conservation
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/conservation_Mb.bed",
+              destfile = "conservation_Mb.bed")
 
-files <- c("CpG_length_sum_Mb.bed")
-read_file <- vector("list", length = 1)
-names(read_file) <- files
-for(i in files) read_file[[i]] <- fread(i)
+# Reptime
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/reptime_Mb.bed",
+              destfile = "reptime_Mb.bed")
 
-for(i in files)
-{
-  df <- read_file[[i]]
-  df <- df[df$V5 != ".",]
-  df$V5 <- as.numeric(df$V5)
-  read_file[[i]] <- df
-}
+# polII
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/polII_mb.bed",
+              destfile = "polII_mb.bed")
 
-read_file$CpG_length_sum_Mb.bed$V5 <- read_file$CpG_length_sum_Mb.bed$V5/1000000
+# mappability
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/mean_mb_mappability.tsv",
+              destfile = "mean_mb_mappability.tsv")
 
-write.table(read_file$CpG_length_sum_Mb.bed,"CpG_percent_Mb.bed",
-            sep = "\t", row.names = F, col.names = F, quote = F)
+# rec_rate
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/rec_rate.tsv",
+              destfile = "rec_rate.tsv")
+
+# tfbs
+download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/tfbs_mb.bed",
+              destfile = "tfbs_mb.bed")
 
 
 
-###########GC含量###########################
-{
-  library(data.table)
-  library(stringr)
-  options(scipen = 30)
-  
-  gc <- fread("hg19.gc5Base.txt", nThread = 8, sep = ",", header = F)
-  chr_index <- grep("variableStep chrom=", gc$V1)
-  chr_index_n <- chr_index[1:25]
-  
-  gc_chr <- vector("list", length = 24)
-  chr_names <- gc$V1[chr_index_n][1:24]
-  names(gc_chr) <- chr_names
-  for(i in 1:24)   gc_chr[[chr_names[i]]] <- gc[chr_index_n[i]:chr_index_n[i+1],]
-  
-  for(i in chr_names)
-  {
-    df <- gc_chr[[i]]
-    dim_length <- dim(df)[1]
-    df_value <- df$V1[2:(dim_length-1)]
-    pos <- str_split_fixed(df_value,"\t",2)[,1]
-    gc_value <- str_split_fixed(df_value,"\t",2)[,2]
-    pos_start <- as.numeric(pos) - 1
-    pos_end <- as.numeric(pos) + 4
-    chr <- strsplit(i,"variableStep chrom=| span=5")[[1]][2]
-    bed_df <- data.frame(chr, pos_start, pos_end, gc_value)
-    bed_list[[i]] <- bed_df
-    fwrite(bed_df, paste(chr,"_gc5base.bed", sep = ""), sep = "\t", row.names = F, quote = F, col.names = F  )
+# 收集遗传变异相关性 ---------------------------------------------------------------
+rm(list = ls());gc()
+
+mut_coding      = "1M_mut_coding.tsv"
+#mut_noncoding  = "1M_mut_noncoding.tsv"
+mut_noncoding   = "mutation_counts_mb.tsv" #为保证结果一致，这里使用与师兄一样的文件
+mut_promoter    = "1M_mut_promoter.tsv"
+mut_nonpromoter = "1M_mut_nonpromoter.tsv"
+
+
+annot_CpG          = "CpG_percent_Mb.bed"
+annot_GC           = "hg19_gcMb.bed"
+annot_conservation = "conservation_Mb.bed"
+annot_Reptime      = "reptime_Mb.bed"
+annot_polII        = "polII_mb.bed"
+annot_mappability  = "mean_mb_mappability.tsv"
+annot_rec_rate     = "rec_rate.tsv"
+annot_tfbs         = "tfbs_mb.bed"
+
+annot = c(annot_CpG, annot_GC, annot_conservation, annot_Reptime,
+          annot_polII, annot_mappability, annot_rec_rate, annot_tfbs)
+
+# join by x with V4
+# V4, V4, V1, V4, V1, V1, V4, V1
+
+obtain_cor = function(annot_list, join_cols, mut_df) {
+  require(data.table)
+  out = data.table()
+  for (i in seq_along(annot_list)) {
+    message("Runing annotation #", i, ": ", annot_list[i])
+    value = fread(annot_list[i])
+    mut = fread(mut_df)
+    result = merge(value, mut, by.x = colnames(value)[join_cols[i]], by.y = "V4")
+
+    # calculate correlation
+    if (i == 5) {
+      result = result[V3.x != 0]
+      tmp = data.table(
+        coeff = cor(result$V3.x, result$V5),
+        p_val = cor.test(result$V3.x, result$V5)$p.value
+      )
+    } else if (i == 7) {
+      result = result[avg != 0]
+      tmp = data.table(
+        coeff = cor(result$avg, result$V5.y),
+        p_val = cor.test(result$avg, result$V5.y)$p.value
+      )
+    } else {
+      result = result[(V5.x != 0) & (V5.x != ".")]
+      result[, V5.x:=as.numeric(V5.x)]
+      result[, V5.y:=as.numeric(V5.y)]
+      tmp = data.table(
+        coeff = cor(result$V5.x, result$V5.y),
+        p_val = cor.test(result$V5.x, result$V5.y)$p.value
+      )
+    }
+
+    out = rbind(out, tmp)
   }
   
-  
-  #对 Mb 区间计算GC平均值（开多个终端，同时运算）
-  bedtools map -a sorted_hg19_1M.bed -b  chr1_gc5base.bed  -c 4 -o mean >  chr1_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr2_gc5base.bed  -c 4 -o mean >  chr2_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr3_gc5base.bed  -c 4 -o mean >  chr3_gcMb.bed
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr4_gc5base.bed  -c 4 -o mean >  chr4_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr5_gc5base.bed  -c 4 -o mean >  chr5_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr6_gc5base.bed  -c 4 -o mean >  chr6_gcMb.bed
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr7_gc5base.bed  -c 4 -o mean >  chr7_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr8_gc5base.bed  -c 4 -o mean >  chr8_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr9_gc5base.bed  -c 4 -o mean >  chr9_gcMb.bed
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr10_gc5base.bed  -c 4 -o mean >  chr10_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr11_gc5base.bed  -c 4 -o mean >  chr11_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr12_gc5base.bed  -c 4 -o mean >  chr12_gcMb.bed
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr13_gc5base.bed  -c 4 -o mean >  chr13_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr14_gc5base.bed  -c 4 -o mean >  chr14_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr15_gc5base.bed  -c 4 -o mean >  chr15_gcMb.bed
-  
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr16_gc5base.bed  -c 4 -o mean >  chr16_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr17_gc5base.bed  -c 4 -o mean >  chr17_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr18_gc5base.bed  -c 4 -o mean >  chr18_gcMb.bed
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr19_gc5base.bed  -c 4 -o mean >  chr19_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr20_gc5base.bed  -c 4 -o mean >  chr20_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chr21_gc5base.bed  -c 4 -o mean >  chr21_gcMb.bed
-  
-  bedtools map -a sorted_hg19_1M.bed -b  chr22_gc5base.bed  -c 4 -o mean >  chr22_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chrX_gc5base.bed  -c 4 -o mean >  chrX_gcMb.bed
-  bedtools map -a sorted_hg19_1M.bed -b  chrY_gc5base.bed  -c 4 -o mean >  chrY_gcMb.bed
-  
-  #合并每条染色体结果（将上述不同长度区间的文件分别放入不同文件夹）
-  files <- list.files()
-  read_file <- vector("list", length = 24)
-  names(read_file) <- files
-  for(i in files)  read_file[[i]] <- fread(i)
-  
-  for(i in files)
-  {
-    chr <- strsplit(i, "_gc1kb.bed")[[1]][1]
-    df <- read_file[[i]]
-    read_file[[i]] <- df[df$V1 == chr,]
-  }
-  
-  names(read_file) <- NULL
-  result <- do.call("rbind", read_file)
-  
-  ###分别输出（）
-  
+  out
 }
 
+cor_genetic = list()
+cor_genetic[["noncoding"]] = obtain_cor(annot, 
+                                        join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
+                                        mut_noncoding)
 
-##########TFBS##############################
-{
-  ###其中wgEncodeRegTfbsClusteredWithCellsV3.bed文件为
-  ###UCSC下载的全基因组转录因子结合位点数据，论文中有链接地址
-  tfbs <- fread("wgEncodeRegTfbsClusteredWithCellsV3.bed")
-  bed <- tfbs[,c(1:3,5)]
-  write.table(bed,"tfbs.bed", sep = "\t", col.names = F, row.names = F, quote = F)
-  
-  
-  ###human_genome_chromosome_length.tsv文件为从human.hg19.genome文件中获取的1:22+X+Y染色体的长度数据
-  sort -k1,1 -k2,2n tfbs.bed > sort_tfbs.bed
-  sort -k1,1 -k2,2n human_genome_chromosome_length.tsv > hg19_chr_size.bed
-  ###不区分转录因子，计算平均值，同时计算重叠部分的平均值
-  bedtools merge -i sort_tfbs.bed -c 4 -o mean > mean_tfbs.bed
-  ###将bed格式转换为bigwig格式
-  ./bedGraphToBigWig mean_tfbs.bed hg19_chr_size.bed tfbs.bigwig
-  
-  ###分别计算1Mb区间长度上的转录因子结合位点数值
-  ./bigWigAverageOverBed tfbs.bigwig sorted_hg19_1M.bed tfbs_mb.bed
-  
-}
+cor_genetic[["coding"]] = obtain_cor(annot, 
+                                        join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
+                                        mut_coding)
+cor_genetic[["promoter"]] = obtain_cor(annot, 
+                                     join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
+                                     mut_promoter)
+cor_genetic[["nonpromoter"]] = obtain_cor(annot, 
+                                       join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
+                                       mut_nonpromoter)
 
 
-##########复制时间##########################
-{
-  bedtools map -a sorted_hg19_1M.bed -b sort_average_reptime_14celllines.bed  -c 4 -o mean >  reptime_Mb.bed
-}
+cor_genetic[["noncoding"]]
+cor_genetic[["coding"]]
+cor_genetic[["promoter"]]
+cor_genetic[["nonpromoter"]]
 
+cor_genetic_df = rbindlist(cor_genetic, idcol = TRUE)
+setnames(cor_genetic_df, ".id", "region")
+cor_genetic_df[, features:=rep(c("CpG island", "GC content",
+                                "Conservation", "Replication time",
+                                "DNA poly II", "Mappability",
+                                "Recombination rate", "TFBS"), 4)]
+cor_genetic_df$features = factor(cor_genetic_df$features,
+                                 c("Mappability", "Replication time",
+                                   "TFBS", "GC content",
+                                   "CpG island", "DNA poly II",
+                                   "Conservation", 
+                                   "Recombination rate"))
+library(ggplot2)
+library(cowplot)
+library(RColorBrewer)
 
-##########POLII############################
-{
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsK562Pol2s2StdSig.bigWig  sorted_hg19_1M.bed  k562_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsMcf10aesPol2Etoh01StdSig.bigWig  sorted_hg19_1M.bed Mcf10aes_Etoh01_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsMcf10aesPol2TamStdSig.bigWig  sorted_hg19_1M.bed Mcf10aes_Tam_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsPbdePol2UcdSig.bigWig  sorted_hg19_1M.bed Pbde_pol2_Mb.bed
-  ./bigWigAverageOverBed  wgEncodeSydhTfbsRajiPol2UcdSig.bigWig  sorted_hg19_1M.bed Raji_pol2_Mb.bed
-  
-  setwd("/home/zhangjing/paper/icgc_download/polII/10kb")
-  files <- list.files()
-  read_file <- vector("list", length = 5)
-  names(read_file) <- files
-  for(i in files)  read_file[[i]] <- fread(i)
-  mean_five <- do.call("cbind", read_file)[,c(5,11,17,23,29)] 
-  mean_five <- as.matrix(mean_five)
-  mean_value <- apply(mean_five, 1, mean)
-  mean_result <- data.frame("num" = read_file[[1]][,1], "length" = read_file[[1]][,2], mean_value)
-  write.table(mean_result, "polII_10kb.bed", sep = "\t", row.names = F, quote = F, col.names = F)
-  
-  
-  
-  setwd("/home/zhangjing/paper/icgc_download/polII/100kb")
-  pol <- fread("polII_100kb.bed")
-  mut <- fread("mutation_counts_100kb.tsv")
-  result <- merge(mut,pol, by.x = "V4", by.y = "V1")
-  result <- result[result$V3.y != 0, ]
-  cor(result$V5, result$V3.y)
-  
-}
+ggplot(cor_genetic_df, aes(x = features, y = coeff, fill=region)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_brewer(palette = "Paired", 
+                    labels = c("Coding", "Noncoding", 
+                               "Noncoding-promoter", "Promoter")) +
+  labs(x = "Genetic features", y = "Correlation coefficient", fill = "Region") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p_genetic
+
+save_plot("Genetic_corrplot.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
+
+cor_genetic_df2 = cor_genetic_df
+setnames(cor_genetic_df2,
+         colnames(cor_genetic_df2),
+         c("Genomic region", "Correlation coefficient",
+           "P value", "Genetic feature"))
+cor_genetic_df2[, `Genomic region` := 
+                  ifelse(`Genomic region` == "nonpromoter",
+                         "Noncoding-promoter", `Genomic region`)]
+
+library(gt)
+gt_genetic <- gt(data = cor_genetic_df2)
+gt_genetic 
+
+# value <- fread("CpG_percent_Mb.bed")
+# mut <- fread("mutation_counts_mb.tsv")
+# result <- merge(value, mut, by.x = "V4", by.y = "V4")
+# result <- result[result$V5.x != 0,]
+# cor(result$V5.x, result$V5.y)
+# cor.test(result$V5.x, result$V5.y)
+# 
+# 
+# mut_num <- read.table("mutation_counts_mb.tsv", stringsAsFactors = F)
+# mut_num <- mut_num[mut_num$V5 != ".",]
+# mut_num$V5 <- as.numeric(mut_num$V5)
+# 
+# reptime <- read.table("reptime_Mb.bed", stringsAsFactors = F)
+# reptime <- reptime[reptime$V5 != ".",]
+# reptime$V5 <- as.numeric(reptime$V5)
+# result <- merge(reptime, mut_num, by.x = "V4", by.y = "V4")
+# 
+# result <- result[result$V5.x != 0, ]
+# cor(result$V5.x, result$V5.y)
+# cor.test(result$V5.x, result$V5.y)
