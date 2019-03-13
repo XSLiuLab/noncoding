@@ -18,7 +18,7 @@ get_reg_mution_number = function(mutation_file, region_file, result_file){
   ###将每个突变后面添加数字1
   mut <- fread(mutation_file, data.table = F)
   mut$V4 <- 1
-  tempmut = paste0("temp_", mutation_file)
+  tempmut = paste0("temp_", basename(mutation_file))
   write.table(mut, tempmut, sep = "\t", row.names = F, col.names = F, quote = F)
   
   ###计算每MB区间内的突变次数
