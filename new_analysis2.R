@@ -1,8 +1,6 @@
 # New Analysis BEGIN ------------------------------------------------------
 # 计算1Mbp区间内突变频率与遗传、表观注释值的相关性
-# Coding, Noconding, Promoter ...
-# Coding为外显子区域
-
+# Noncoding 和 Total区间
 setwd("~/New_Analysis/")
 source("functions.R")
 library(data.table)
@@ -151,8 +149,8 @@ download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/
 rm(list = ls());gc()
 
 mut_coding      = "1M_mut_coding.tsv"
-mut_noncoding  = "1M_mut_noncoding.tsv"
-# mut_noncoding   = "mutation_counts_mb.tsv" #师兄使用的数据
+#mut_noncoding  = "1M_mut_noncoding.tsv"
+mut_noncoding   = "mutation_counts_mb.tsv" #为保证结果一致，这里使用与师兄一样的文件
 mut_promoter    = "1M_mut_promoter.tsv"
 mut_nonpromoter = "1M_mut_nonpromoter.tsv"
 
@@ -169,29 +167,6 @@ annot_tfbs         = "tfbs_mb.bed"
 annot = c(annot_CpG, annot_GC, annot_conservation, annot_Reptime,
           annot_polII, annot_mappability, annot_rec_rate, annot_tfbs)
 
-region.coding = "merged_sorted_cds_region.bed"
-region.noncoding = "region_noncoding.bed"
-region.promoter = "merged_sorted_promoter_region.bed"
-region.nonpromoter = "region_non_promoter.bed"
-
-add_coverage = function(gn_region, mut_file, result_file, ref_region="sorted_hg19_1M.bed"){
-  tmp_file = paste0("tmp_", basename(gn_region))
-  system(paste("bedtools coverage -a", ref_region, "-b", gn_region, ">", tmp_file))
-  tmp = fread(tmp_file)
-  file.remove(tmp_file)
-  mut = fread(mut_file)
-  res = merge(mut, tmp, by="V4")
-  write.table(res[, c(2:4,1,5,12)], result_file, sep = "\t", row.names = F, col.names = F, quote = F)
-}
-
-add_coverage(region.coding, mut_coding, "1M_mut_coding_add_cov.tsv")
-add_coverage(region.noncoding, mut_noncoding, "1M_mut_noncoding_add_cov.tsv")
-add_coverage(region.promoter, mut_promoter, "1M_mut_promoter_add_cov.tsv")
-add_coverage(region.nonpromoter, mut_nonpromoter, "1M_mut_nonpromoter_add_cov.tsv")
-
-# calculate coverage
-system("bedtools coverage -a sorted_hg19_1M.bed -b merged_sorted_cds_region.bed   > test_cov2.bed")
-
 # join by x with V4
 # V4, V4, V1, V4, V1, V1, V4, V1
 
@@ -202,43 +177,36 @@ obtain_cor = function(annot_list, join_cols, mut_df) {
     message("Runing annotation #", i, ": ", annot_list[i])
     value = fread(annot_list[i])
     mut = fread(mut_df)
-    colnames(mut)[6] = "cov"
     result = merge(value, mut, by.x = colnames(value)[join_cols[i]], by.y = "V4")
-
+    
     # calculate correlation
     if (i == 5) {
       result = result[(V3.x != 0) & (V5 !=0)]
       tmp = data.table(
-        coeff = cor(result$V3.x, result$V5 * result$cov),
-        p_val = cor.test(result$V3.x, result$V5 * result$cov)$p.value
+        coeff = cor(result$V3.x, result$V5),
+        p_val = cor.test(result$V3.x, result$V5)$p.value
       )
     } else if (i == 7) {
       result = result[(avg != 0) & (V5.y != 0)]
       tmp = data.table(
-        coeff = cor(result$avg, result$V5.y * result$cov),
-        p_val = cor.test(result$avg, result$V5.y * result$cov)$p.value
+        coeff = cor(result$avg, result$V5.y),
+        p_val = cor.test(result$avg, result$V5.y)$p.value
       )
     } else {
       result = result[(V5.x != 0) & (V5.x != ".") & (V5.y != 0) & (V5.y != ".") ]
       result[, V5.x:=as.numeric(V5.x)]
       result[, V5.y:=as.numeric(V5.y)]
       tmp = data.table(
-        coeff = cor(result$V5.x, result$V5.y * result$cov),
-        p_val = cor.test(result$V5.x, result$V5.y * result$cov)$p.value
+        coeff = cor(result$V5.x, result$V5.y),
+        p_val = cor.test(result$V5.x, result$V5.y)$p.value
       )
     }
-
+    
     out = rbind(out, tmp)
   }
   
   out
 }
-
-mut_coding      = "1M_mut_coding_add_cov.tsv"
-mut_noncoding  = "1M_mut_noncoding_add_cov.tsv"
-# mut_noncoding   = "mutation_counts_mb.tsv" #师兄使用的数据
-mut_promoter    = "1M_mut_promoter_add_cov.tsv"
-mut_nonpromoter = "1M_mut_nonpromoter_add_cov.tsv"
 
 cor_genetic = list()
 cor_genetic[["noncoding"]] = obtain_cor(annot, 
@@ -246,14 +214,14 @@ cor_genetic[["noncoding"]] = obtain_cor(annot,
                                         mut_noncoding)
 
 cor_genetic[["coding"]] = obtain_cor(annot, 
-                                        join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
-                                        mut_coding)
-cor_genetic[["promoter"]] = obtain_cor(annot, 
                                      join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
-                                     mut_promoter)
-cor_genetic[["nonpromoter"]] = obtain_cor(annot, 
+                                     mut_coding)
+cor_genetic[["promoter"]] = obtain_cor(annot, 
                                        join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
-                                       mut_nonpromoter)
+                                       mut_promoter)
+cor_genetic[["nonpromoter"]] = obtain_cor(annot, 
+                                          join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
+                                          mut_nonpromoter)
 
 
 cor_genetic[["noncoding"]]
@@ -264,9 +232,9 @@ cor_genetic[["nonpromoter"]]
 cor_genetic_df = rbindlist(cor_genetic, idcol = TRUE)
 setnames(cor_genetic_df, ".id", "region")
 cor_genetic_df[, features:=rep(c("CpG island", "GC content",
-                                "Conservation", "Replication time",
-                                "DNA poly II", "Mappability",
-                                "Recombination rate", "TFBS"), 4)]
+                                 "Conservation", "Replication time",
+                                 "DNA poly II", "Mappability",
+                                 "Recombination rate", "TFBS"), 4)]
 cor_genetic_df$features = factor(cor_genetic_df$features,
                                  c("Mappability", "Replication time",
                                    "TFBS", "GC content",
@@ -721,8 +689,8 @@ setnames(annot_cor2,
            "Correlation coefficient",
            "P value"))
 annot_cor2[, `Genomic region` := 
-                  ifelse(`Genomic region` == "nonpromoter",
-                         "Noncoding-promoter", `Genomic region`)]
+             ifelse(`Genomic region` == "nonpromoter",
+                    "Noncoding-promoter", `Genomic region`)]
 write.csv(as.data.frame(annot_cor2), file = "表观相关性结果-wsx.csv", quote = FALSE, row.names = FALSE)
 
 # plot
