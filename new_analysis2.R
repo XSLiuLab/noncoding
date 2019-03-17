@@ -22,89 +22,30 @@ if (F) {
   rm(mut, pos_mut, mut_bed); gc()
 }
 
-# 编码区 ---------------------------------------------------------------------
-
-get_cds_region("../predict_prob/Homo_sapiens.GRCh37.75.gtf")
-gc()
-# merge，以防重叠区间
-system("sort -k 1,1 -k 2,2n cds_region.bed > sorted_cds_region.bed")
-#Sys.getenv("PATH")
-system("bedtools merge -i sorted_cds_region.bed > merged_sorted_cds_region.bed")
-file.remove("sorted_cds_region.bed")
-
 # 非编码区 --------------------------------------------------------------------
 system("sort -k 1,1 -k 2,2n human.hg19.genome > sorted_human.hg19.genome")  #bedtools包中附带文件
 system("bedtools complement -i merged_sorted_cds_region.bed -g sorted_human.hg19.genome > region_noncoding.bed")
 
-# Promoter 区 --------------------------------------------------------------
-# 选取-2500 到 +500 作为启动子区域
-up_site = 2500
-down_site = 500
-##过滤数据
-gtf_ensmble <- fread("../predict_prob/Homo_sapiens.GRCh37.75.gtf", 
-                     sep = "\t", colClasses=list(character= 1))
-names(gtf_ensmble)[1] <- "V1"
-ensmble_pro_cod <- gtf_ensmble[gtf_ensmble$V2 == "protein_coding",] #选择仅仅是蛋白质编码的转录本
-transcript_pro_cod_ensmble <- ensmble_pro_cod[ensmble_pro_cod$V3 == "transcript",]          ##########从转录本中选取总的转录本区间
-options(scipen=30)
-chr_index <- c(c(1:22),"X","Y")
-chr_trans_pro <- transcript_pro_cod_ensmble[transcript_pro_cod_ensmble$V1 %in% chr_index, ] #仅仅挑选chr1:22 + X + Y 染色体
-##从SST获取up_site到down_site的区间
-pos_trans_chr_gtf <- chr_trans_pro[chr_trans_pro$V7 == "+",]
-neg_trans_chr_gtf <- chr_trans_pro[chr_trans_pro$V7 == "-",]
-pos_chr <- paste("chr",pos_trans_chr_gtf$V1, sep = "")
-pos_start <- pos_trans_chr_gtf$V4 - up_site
-pos_end <- pos_trans_chr_gtf$V4 + down_site
-pos_bed <- data.frame(pos_chr, pos_start, pos_end)
-names(pos_bed) <- c("chr","start","end")
-
-neg_chr <- paste("chr",neg_trans_chr_gtf$V1, sep = "")
-neg_start <- neg_trans_chr_gtf$V5 + up_site
-neg_end <- neg_trans_chr_gtf$V5 - down_site
-neg_bed <- data.frame(neg_chr, neg_end, neg_start)
-names(neg_bed) <- c("chr","start","end")
-
-promoter_region <- rbind(pos_bed, neg_bed)
-promoter_region$index <- 1
-write.table(promoter_region,"promoter_region.bed", sep = "\t", row.names = F, col.names = F,quote = F)
-
-# 同样地，排序并merge
-system("sort -k 1,1 -k 2,2n promoter_region.bed > sorted_promoter_region.bed")
-system("bedtools merge -i sorted_promoter_region.bed > merged_sorted_promoter_region.bed")
-file.remove("sorted_promoter_region.bed")
-
-# 非Promoter的noncoding区 ----------------------------------------------------
-# noncoding区间除了Promoter之外的区间
-
-system("bedtools subtract -a region_noncoding.bed -b merged_sorted_promoter_region.bed > region_non_promoter.bed")
 
 
 rm(list = ls()); gc()
 source("functions.R")
 # 获取不同区间上的突变数目 --------------------------------------------------------
-region.coding = "merged_sorted_cds_region.bed"
+region.coding = "m"
 region.noncoding = "region_noncoding.bed"
-region.promoter = "merged_sorted_promoter_region.bed"
-region.nonpromoter = "region_non_promoter.bed"
 
 original_bed = "single_mut.bed"
 
-get_reg_mution(original_bed, region.coding, "mut_coding.bed")
 get_reg_mution(original_bed, region.noncoding, "mut_noncoding.bed")
-get_reg_mution(original_bed, region.promoter, "mut_promoter.bed")
-get_reg_mution(original_bed, region.nonpromoter, "mut_nonpromoter.bed")
-
 
 # 分割基因组区间 -----------------------------------------------------------------
 get_region_bed(1000000L)
 system("sort -k 1,1 -k 2,2n hg19_mb_1M.bed > sorted_hg19_1M.bed")
 
 # 计算突变数 -------------------------------------------------------------------
-get_reg_mution_number("mut_coding.bed", "sorted_hg19_1M.bed", "1M_mut_coding.tsv")
 get_reg_mution_number("mut_noncoding.bed", "sorted_hg19_1M.bed", "1M_mut_noncoding.tsv")
-get_reg_mution_number("mut_promoter.bed", "sorted_hg19_1M.bed", "1M_mut_promoter.tsv")
-get_reg_mution_number("mut_nonpromoter.bed", "sorted_hg19_1M.bed", "1M_mut_nonpromoter.tsv")
-
+system("sort -k 1,1 -k 2,2n single_mut.bed > sorted_single_mut.bed")
+get_reg_mution_number("sorted_single_mut.bed", "sorted_hg19_1M.bed", "1M_mut_total.tsv")
 
 # 计算突变的各种注释结果 -------------------------------------------------------------
 
@@ -148,12 +89,10 @@ download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/
 # 收集遗传变异相关性 ---------------------------------------------------------------
 rm(list = ls());gc()
 
-mut_coding      = "1M_mut_coding.tsv"
+
 #mut_noncoding  = "1M_mut_noncoding.tsv"
 mut_noncoding   = "mutation_counts_mb.tsv" #为保证结果一致，这里使用与师兄一样的文件
-mut_promoter    = "1M_mut_promoter.tsv"
-mut_nonpromoter = "1M_mut_nonpromoter.tsv"
-
+mut_total = "1M_mut_total.tsv"
 
 annot_CpG          = "CpG_percent_Mb.bed"
 annot_GC           = "hg19_gcMb.bed"
@@ -213,28 +152,20 @@ cor_genetic[["noncoding"]] = obtain_cor(annot,
                                         join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
                                         mut_noncoding)
 
-cor_genetic[["coding"]] = obtain_cor(annot, 
+cor_genetic[["total"]] = obtain_cor(annot, 
                                      join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
-                                     mut_coding)
-cor_genetic[["promoter"]] = obtain_cor(annot, 
-                                       join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
-                                       mut_promoter)
-cor_genetic[["nonpromoter"]] = obtain_cor(annot, 
-                                          join_cols = c(4, 4, 1, 4, 1, 1, 4, 1), 
-                                          mut_nonpromoter)
+                                     mut_total)
 
 
 cor_genetic[["noncoding"]]
-cor_genetic[["coding"]]
-cor_genetic[["promoter"]]
-cor_genetic[["nonpromoter"]]
+cor_genetic[["total"]]
 
 cor_genetic_df = rbindlist(cor_genetic, idcol = TRUE)
 setnames(cor_genetic_df, ".id", "region")
 cor_genetic_df[, features:=rep(c("CpG island", "GC content",
                                  "Conservation", "Replication time",
                                  "DNA poly II", "Mappability",
-                                 "Recombination rate", "TFBS"), 4)]
+                                 "Recombination rate", "TFBS"), 2)]
 cor_genetic_df$features = factor(cor_genetic_df$features,
                                  c("Mappability", "Replication time",
                                    "TFBS", "GC content",
@@ -247,50 +178,19 @@ library(RColorBrewer)
 
 ggplot(cor_genetic_df, aes(x = features, y = coeff, fill=region)) +
   geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_brewer(palette = "Paired", 
-                    labels = c("Coding", "Noncoding", 
-                               "Noncoding-promoter", "Promoter")) +
+  scale_fill_brewer(palette = "Paired", labels = c("Noncoding", "Total")) +
   labs(x = "Genetic features", y = "Correlation coefficient", fill = "Region") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p_genetic
 
-save_plot("Genetic_corrplot.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
+save_plot("Genetic_corrplot_noncoding_vs_total.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
 
 cor_genetic_df2 = cor_genetic_df
 setnames(cor_genetic_df2,
          colnames(cor_genetic_df2),
          c("Genomic region", "Correlation coefficient",
            "P value", "Genetic feature"))
-cor_genetic_df2[, `Genomic region` := 
-                  ifelse(`Genomic region` == "nonpromoter",
-                         "Noncoding-promoter", `Genomic region`)]
 
-write.csv(as.data.frame(cor_genetic_df2), file = "遗传相关性结果-wsx.csv", quote = FALSE, row.names = FALSE)
-
-# library(gt)
-# gt_genetic <- gt(data = cor_genetic_df2)
-# gt_genetic 
-
-# value <- fread("CpG_percent_Mb.bed")
-# mut <- fread("mutation_counts_mb.tsv")
-# result <- merge(value, mut, by.x = "V4", by.y = "V4")
-# result <- result[result$V5.x != 0,]
-# cor(result$V5.x, result$V5.y)
-# cor.test(result$V5.x, result$V5.y)
-# 
-# 
-# mut_num <- read.table("mutation_counts_mb.tsv", stringsAsFactors = F)
-# mut_num <- mut_num[mut_num$V5 != ".",]
-# mut_num$V5 <- as.numeric(mut_num$V5)
-# 
-# reptime <- read.table("reptime_Mb.bed", stringsAsFactors = F)
-# reptime <- reptime[reptime$V5 != ".",]
-# reptime$V5 <- as.numeric(reptime$V5)
-# result <- merge(reptime, mut_num, by.x = "V4", by.y = "V4")
-# 
-# result <- result[result$V5.x != 0, ]
-# cor(result$V5.x, result$V5.y)
-# cor.test(result$V5.x, result$V5.y)
-
+write.csv(as.data.frame(cor_genetic_df2), file = "遗传相关性结果-total-wsx.csv", quote = FALSE, row.names = FALSE)
 
 
 # 表观相关性预处理 ----------------------------------------------------------------
@@ -531,38 +431,30 @@ get_reg_mution_number2 = function(orig_file, mutation_file, region_file, result_
   
   rm(mut, mut_bed); gc()
   # 获取各个要计算的基因组区间
-  region.coding = "merged_sorted_cds_region.bed"
-  region.noncoding = "region_noncoding.bed"
-  region.promoter = "merged_sorted_promoter_region.bed"
-  region.nonpromoter = "region_non_promoter.bed"
+  #region.noncoding = "region_noncoding.bed"
+  region.total = "region_total.bed"
   
-  mutation_file.coding = file.path("~/New_Analysis/epi/mutation/", paste0("mut_coding_", basename(mutation_file)))
-  mutation_file.noncoding = file.path("~/New_Analysis/epi/mutation/", paste0("mut_noncoding_", basename(mutation_file)))
-  mutation_file.promoter = file.path("~/New_Analysis/epi/mutation/", paste0("mut_promoter_", basename(mutation_file)))
-  mutation_file.nonpromoter = file.path("~/New_Analysis/epi/mutation/", paste0("mut_nonpromoter_", basename(mutation_file)))
+  #mutation_file.noncoding = file.path("~/New_Analysis/epi/mutation/", paste0("mut_noncoding_", basename(mutation_file)))
+  mutation_file.total = file.path("~/New_Analysis/epi/mutation/", paste0("mut_total_", basename(mutation_file)))
+
+  #get_reg_mution(mutation_file, region.noncoding, mutation_file.noncoding)
+  get_reg_mution(mutation_file, region.total, mutation_file.total)
   
-  get_reg_mution(mutation_file, region.coding, mutation_file.coding)
-  get_reg_mution(mutation_file, region.noncoding, mutation_file.noncoding)
-  get_reg_mution(mutation_file, region.promoter, mutation_file.promoter)
-  get_reg_mution(mutation_file, region.nonpromoter, mutation_file.nonpromoter)
-  
-  result_file.coding = file.path("~/New_Analysis/epi/mutation/", paste0("coding_", basename(result_file)))
-  result_file.noncoding = file.path("~/New_Analysis/epi/mutation/", paste0("noncoding_", basename(result_file)))
-  result_file.promoter = file.path("~/New_Analysis/epi/mutation/", paste0("promoter_", basename(result_file)))
-  result_file.nonpromoter = file.path("~/New_Analysis/epi/mutation/", paste0("nonpromoter_", basename(result_file)))
+  #result_file.noncoding = file.path("~/New_Analysis/epi/mutation/", paste0("noncoding_", basename(result_file)))
+  result_file.total = file.path("~/New_Analysis/epi/mutation/", paste0("total_", basename(result_file)))
   
   # 获取不同区间的1M区间突变
-  get_reg_mution_number(mutation_file.coding, region_file, result_file.coding)
-  get_reg_mution_number(mutation_file.noncoding, region_file, result_file.noncoding)
-  get_reg_mution_number(mutation_file.promoter, region_file, result_file.promoter)
-  get_reg_mution_number(mutation_file.nonpromoter, region_file, result_file.nonpromoter)
+  #get_reg_mution_number(mutation_file.noncoding, region_file, result_file.noncoding)
+  get_reg_mution_number(mutation_file.total, region_file, result_file.total)
   
 }
 
-#sub("^([^.]*).*", "\\1", 'filename.extension')  remove file extension
-# get_reg_mution_number2("epi/blood_cancer_info.bed", "epi/mutation/blood_cancer.bed", 
-#                        "sorted_hg19_1M.bed", "1M_blood_cancer.tsv")
+hg19 = fread("sorted_human.hg19.genome")
+hg19$V3 = 0L
+hg19 = hg19[, c(1, 3, 2)]
+write.table(hg19, file = "region_total.bed", quote = FALSE, sep = "\t", col.names = FALSE, row.names = FALSE)
 
+# Noncoding之前算过了，这里注释掉
 # 批量计算不同癌症类型和区间的突变数
 for (f in dir("epi", pattern = "_info.bed", full.names = T)){
   mut_file = file.path("epi/mutation", sub("_info", "", basename(f)))
@@ -624,7 +516,9 @@ cal_mean("E059-H3K4me3","E061-H3K4me3","E059_E061-H3K4me3")
 # breast E028
 # melanoma E059 E061
 
-mut_files = list.files("~/New_Analysis/epi/mutation", pattern = "1M", full.names = TRUE)
+mut_files = c(list.files("~/New_Analysis/epi/mutation", pattern = "noncoding_1M", full.names = TRUE),
+              list.files("~/New_Analysis/epi/mutation", pattern = "total_1M", full.names = TRUE))
+
 annot_files = list.files("~/New_Analysis/bigwig/output/", pattern = "^E", full.names = TRUE)
 mappings = c("blood", "breast", "esophagus", "kidney", "liver", "lung", "ovary", "pancreas", "mela")
 names(mappings) = c("E062", "E028", "E079", "E086", "E066", "E096", "E097", "E098", "E059")
@@ -677,7 +571,8 @@ obtain_cor2 = function(mappings, mut_files, annot_files, types = c("coding", "no
 }
 
 
-annot_cor = obtain_cor2(mappings, mut_files, annot_files)
+
+annot_cor = obtain_cor2(mappings, mut_files, annot_files, c("noncoding", "total"))
 
 setwd("~/New_Analysis/")
 # save
@@ -688,17 +583,13 @@ setnames(annot_cor2,
            "Epigenetic type",
            "Correlation coefficient",
            "P value"))
-annot_cor2[, `Genomic region` := 
-             ifelse(`Genomic region` == "nonpromoter",
-                    "Noncoding-promoter", `Genomic region`)]
-write.csv(as.data.frame(annot_cor2), file = "表观相关性结果-wsx.csv", quote = FALSE, row.names = FALSE)
+
+write.csv(as.data.frame(annot_cor2), file = "表观相关性结果-total-wsx.csv", quote = FALSE, row.names = FALSE)
 
 # plot
 plot_df = list()
 plot_df[["noncoding"]] = annot_cor["noncoding", on = "region"][, c("region", "p_val"):=NULL]
-plot_df[["coding"]] = annot_cor["coding", on = "region"][, c("region", "p_val"):=NULL]
-plot_df[["nonpromoter"]] = annot_cor["nonpromoter", on = "region"][, c("region", "p_val"):=NULL]
-plot_df[["promoter"]] = annot_cor["promoter", on = "region"][, c("region", "p_val"):=NULL]
+plot_df[["total"]] = annot_cor["total", on = "region"][, c("region", "p_val"):=NULL]
 
 plot_heatmap = function(df){
   df_wide = tidyr::spread(data = df, tumor_type, coeff) %>% 
@@ -715,8 +606,6 @@ plot_heatmap = function(df){
 }
 
 plot_heatmap(plot_df[["noncoding"]])
-plot_heatmap(plot_df[["coding"]])
-plot_heatmap(plot_df[["promoter"]])
-plot_heatmap(plot_df[["nonpromoter"]])
+plot_heatmap(plot_df[["total"]])
 
-# output pdf set width 5, height 5 
+# output pdf set width 6, height 5 

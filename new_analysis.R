@@ -751,4 +751,4 @@ plot_heatmap(plot_df[["coding"]])
 plot_heatmap(plot_df[["promoter"]])
 plot_heatmap(plot_df[["nonpromoter"]])
 
-# output pdf set width 5, height 5 
+# output pdf set width 6, height 5 
