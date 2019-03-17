@@ -705,6 +705,7 @@ obtain_cor2 = function(mappings, mut_files, annot_files, types = c("coding", "no
       message(">> Calculating correaltion...")
       
       mut = fread(region_mut)
+      colnames(mut)[6] = "cov"
       for(f in type_anno) {
         anno_type = unlist(strsplit(basename(f), split = "-"))[2]
         
@@ -720,8 +721,8 @@ obtain_cor2 = function(mappings, mut_files, annot_files, types = c("coding", "no
           tumor_type = mappings[i],
           region = type, 
           anno_type = anno_type, 
-          coeff = cor(result$V5.x, result$V5.y),
-          p_val = cor.test(result$V5.x, result$V5.y)$p.value)
+          coeff = cor(result$V5.x / result$cov, result$V5.y),
+          p_val = cor.test(result$V5.x / result$cov, result$V5.y)$p.value)
         
         out = rbind(out, tmp)
       }
@@ -767,7 +768,7 @@ plot_heatmap = function(df){
   # col_order = c("esophagus", "lung", "kidney",
   #               "blood", "breast", "liver", 
   #               "melanoma", "ovary", "pancreas")
-  pheatmap::pheatmap(df_wide)
+  pheatmap::pheatmap(df_wide, cluster_rows = F, cluster_cols = F)
 }
 
 plot_heatmap(plot_df[["noncoding"]])
@@ -775,4 +776,4 @@ plot_heatmap(plot_df[["coding"]])
 plot_heatmap(plot_df[["promoter"]])
 plot_heatmap(plot_df[["nonpromoter"]])
 
-# output pdf set width 6, height 5 
+# output pdf set width 5.5, height 5 
