@@ -209,22 +209,22 @@ obtain_cor = function(annot_list, join_cols, mut_df) {
     if (i == 5) {
       result = result[(V3.x != 0) & (V5 !=0)]
       tmp = data.table(
-        coeff = cor(result$V3.x * result$cov, result$V5),
-        p_val = cor.test(result$V3.x * result$cov, result$V5)$p.value
+        coeff = cor(result$V3.x, result$V5 / result$cov),
+        p_val = cor.test(result$V3.x, result$V5 / result$cov)$p.value
       )
     } else if (i == 7) {
       result = result[(avg != 0) & (V5.y != 0)]
       tmp = data.table(
-        coeff = cor(result$avg * result$cov, result$V5.y),
-        p_val = cor.test(result$avg * result$cov, result$V5.y)$p.value
+        coeff = cor(result$avg, result$V5.y / result$cov),
+        p_val = cor.test(result$avg, result$V5.y / result$cov)$p.value
       )
     } else {
       result = result[(V5.x != 0) & (V5.x != ".") & (V5.y != 0) & (V5.y != ".") ]
       result[, V5.x:=as.numeric(V5.x)]
       result[, V5.y:=as.numeric(V5.y)]
       tmp = data.table(
-        coeff = cor(result$V5.x * result$cov, result$V5.y),
-        p_val = cor.test(result$V5.x * result$cov, result$V5.y)$p.value
+        coeff = cor(result$V5.x, result$V5.y / result$cov),
+        p_val = cor.test(result$V5.x, result$V5.y / result$cov)$p.value
       )
     }
 
@@ -285,7 +285,7 @@ ggplot(cor_genetic_df, aes(x = features, y = coeff, fill=region)) +
   labs(x = "Genetic features", y = "Correlation coefficient", fill = "Region") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p_genetic
 
-save_plot("Genetic_corrplot2.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
+save_plot("Genetic_corrplot3.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
 
 cor_genetic_df2 = cor_genetic_df
 setnames(cor_genetic_df2,
@@ -296,7 +296,7 @@ cor_genetic_df2[, `Genomic region` :=
                   ifelse(`Genomic region` == "nonpromoter",
                          "Noncoding-promoter", `Genomic region`)]
 
-write.csv(as.data.frame(cor_genetic_df2), file = "遗传相关性结果2-wsx.csv", quote = FALSE, row.names = FALSE)
+write.csv(as.data.frame(cor_genetic_df2), file = "遗传相关性结果3-wsx.csv", quote = FALSE, row.names = FALSE)
 
 # library(gt)
 # gt_genetic <- gt(data = cor_genetic_df2)
@@ -657,6 +657,30 @@ cal_mean("E059-H3K4me3","E061-H3K4me3","E059_E061-H3K4me3")
 # melanoma E059 E061
 
 mut_files = list.files("~/New_Analysis/epi/mutation", pattern = "1M", full.names = TRUE)
+# add coverage ratio
+region.coding = "merged_sorted_cds_region.bed"
+region.noncoding = "region_noncoding.bed"
+region.promoter = "merged_sorted_promoter_region.bed"
+region.nonpromoter = "region_non_promoter.bed"
+
+add_coverage(region.coding, mut_coding, "1M_mut_coding_add_cov.tsv")
+sapply(grep("/coding", mut_files, value = TRUE), function(x) {
+  add_coverage(region.coding, x, file.path(dirname(x), paste0("Cov_", basename(x))))
+})
+
+sapply(grep("/noncoding", mut_files, value = TRUE), function(x) {
+  add_coverage(region.noncoding, x, file.path(dirname(x), paste0("Cov_", basename(x))))
+})
+
+sapply(grep("/promoter", mut_files, value = TRUE), function(x) {
+  add_coverage(region.promoter, x, file.path(dirname(x), paste0("Cov_", basename(x))))
+})
+
+sapply(grep("/nonpromoter", mut_files, value = TRUE), function(x) {
+  add_coverage(region.nonpromoter, x, file.path(dirname(x), paste0("Cov_", basename(x))))
+})
+
+mut_files = list.files("~/New_Analysis/epi/mutation", pattern = "Cov", full.names = TRUE)
 annot_files = list.files("~/New_Analysis/bigwig/output/", pattern = "^E", full.names = TRUE)
 mappings = c("blood", "breast", "esophagus", "kidney", "liver", "lung", "ovary", "pancreas", "mela")
 names(mappings) = c("E062", "E028", "E079", "E086", "E066", "E096", "E097", "E098", "E059")
@@ -676,7 +700,7 @@ obtain_cor2 = function(mappings, mut_files, annot_files, types = c("coding", "no
     message(">> OK")
     for (type in types) {
       message(">> Extracting region - ", type)
-      region_mut = grep(paste0("/",type), type_mut, value = TRUE)
+      region_mut = grep(paste0("_",type), type_mut, value = TRUE) # precisely match
       message(">> OK")
       message(">> Calculating correaltion...")
       
@@ -723,7 +747,7 @@ setnames(annot_cor2,
 annot_cor2[, `Genomic region` := 
                   ifelse(`Genomic region` == "nonpromoter",
                          "Noncoding-promoter", `Genomic region`)]
-write.csv(as.data.frame(annot_cor2), file = "表观相关性结果-wsx.csv", quote = FALSE, row.names = FALSE)
+write.csv(as.data.frame(annot_cor2), file = "表观相关性结果2-wsx.csv", quote = FALSE, row.names = FALSE)
 
 # plot
 plot_df = list()

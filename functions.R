@@ -118,3 +118,13 @@ get_region_bed <- function(region_length)
 }  
 
 
+add_coverage = function(gn_region, mut_file, result_file, ref_region="sorted_hg19_1M.bed"){
+  tmp_file = paste0("tmp_", basename(gn_region))
+  system(paste("bedtools coverage -a", ref_region, "-b", gn_region, ">", tmp_file))
+  tmp = fread(tmp_file)
+  file.remove(tmp_file)
+  mut = fread(mut_file)
+  res = merge(mut, tmp, by="V4")
+  write.table(res[, c(2:4,1,5,12)], result_file, sep = "\t", row.names = F, col.names = F, quote = F)
+}
+
