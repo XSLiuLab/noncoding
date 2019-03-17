@@ -209,22 +209,22 @@ obtain_cor = function(annot_list, join_cols, mut_df) {
     if (i == 5) {
       result = result[(V3.x != 0) & (V5 !=0)]
       tmp = data.table(
-        coeff = cor(result$V3.x, result$V5 * result$cov),
-        p_val = cor.test(result$V3.x, result$V5 * result$cov)$p.value
+        coeff = cor(result$V3.x * result$cov, result$V5),
+        p_val = cor.test(result$V3.x * result$cov, result$V5)$p.value
       )
     } else if (i == 7) {
       result = result[(avg != 0) & (V5.y != 0)]
       tmp = data.table(
-        coeff = cor(result$avg, result$V5.y * result$cov),
-        p_val = cor.test(result$avg, result$V5.y * result$cov)$p.value
+        coeff = cor(result$avg * result$cov, result$V5.y),
+        p_val = cor.test(result$avg * result$cov, result$V5.y)$p.value
       )
     } else {
       result = result[(V5.x != 0) & (V5.x != ".") & (V5.y != 0) & (V5.y != ".") ]
       result[, V5.x:=as.numeric(V5.x)]
       result[, V5.y:=as.numeric(V5.y)]
       tmp = data.table(
-        coeff = cor(result$V5.x, result$V5.y * result$cov),
-        p_val = cor.test(result$V5.x, result$V5.y * result$cov)$p.value
+        coeff = cor(result$V5.x * result$cov, result$V5.y),
+        p_val = cor.test(result$V5.x * result$cov, result$V5.y)$p.value
       )
     }
 
@@ -285,7 +285,7 @@ ggplot(cor_genetic_df, aes(x = features, y = coeff, fill=region)) +
   labs(x = "Genetic features", y = "Correlation coefficient", fill = "Region") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p_genetic
 
-save_plot("Genetic_corrplot.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
+save_plot("Genetic_corrplot2.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
 
 cor_genetic_df2 = cor_genetic_df
 setnames(cor_genetic_df2,
@@ -296,7 +296,7 @@ cor_genetic_df2[, `Genomic region` :=
                   ifelse(`Genomic region` == "nonpromoter",
                          "Noncoding-promoter", `Genomic region`)]
 
-write.csv(as.data.frame(cor_genetic_df2), file = "遗传相关性结果-wsx.csv", quote = FALSE, row.names = FALSE)
+write.csv(as.data.frame(cor_genetic_df2), file = "遗传相关性结果2-wsx.csv", quote = FALSE, row.names = FALSE)
 
 # library(gt)
 # gt_genetic <- gt(data = cor_genetic_df2)
