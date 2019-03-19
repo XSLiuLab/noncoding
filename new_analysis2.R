@@ -602,8 +602,9 @@ plot_heatmap = function(df){
   # col_order = c("esophagus", "lung", "kidney",
   #               "blood", "breast", "liver", 
   #               "melanoma", "ovary", "pancreas")
-  pheatmap::pheatmap(df_wide)
+  pheatmap::pheatmap(df_wide, cluster_rows = F, cluster_cols = F)
 }
+
 
 plot_heatmap(plot_df[["noncoding"]])
 plot_heatmap(plot_df[["total"]])
