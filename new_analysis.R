@@ -145,6 +145,87 @@ download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/
 download.file("https://raw.githubusercontent.com/zhangjing1589/noncoding/master/tfbs_mb.bed",
               destfile = "tfbs_mb.bed")
 
+## Added on 2020
+#system("sort -k 1,1 -k 2,2n tfbs_midpoint.union.bed > sorted.tfbs_midpoint.bed")
+
+dt = data.table::fread("tfbs_midpoint.union.bed", header = FALSE)
+dt$V2 = as.integer(dt$V2)
+dt$V3 = as.integer(dt$V3)
+data.table::fwrite(unique(dt[, c(1, 2, 3)]), 
+                   file = "tfbs_midpoint_3cols.bed",
+                   sep = "\t",
+                   col.names = FALSE)
+system("sort -k 1,1 -k 2,2n tfbs_midpoint_3cols.bed > sorted.tfbs_midpoint_3cols.bed")
+system("bedtools closest -a mut_noncoding.bed -b sorted.tfbs_midpoint_3cols.bed -d > dist2tfbs_midpoint.bed")
+
+dt = data.table::fread("dist2tfbs_midpoint.bed", header = FALSE)
+summary(dt$V7)
+dt = dt[V7 != -1]
+
+dt$V7[dt$V7 > 100] = 100
+dt$V4 = NULL
+dt$V5 = NULL
+dt$V6 = NULL
+
+data.table::fwrite(dt, file = "dist2tfbs.bed", col.names = FALSE, sep = "\t")
+rm(list = ls()); gc()
+
+system("bedtools map -a sorted_hg19_1M.bed -b dist2tfbs.bed -c 4 -o count,sum > tfbs_mb_dist.bed")
+
+dist = data.table::fread("tfbs_mb_dist.bed", header = FALSE)
+
+str(dist)
+
+dist$V6 = as.integer(dist$V6)
+dist$V6 = dist$V6 / dist$V5
+
+summary(dist$V6)
+
+cor.test(dist$V5, dist$V6)
+plot(dist$V6, dist$V5,
+     ylab = "Noncoding mutactions in 1Mb region",
+     xlab = "Mean distance (bp) to midpoint of TFBS in 1Mb region")
+
+data.table::fwrite(dist, file = "tfbs_mb_dist_tidy.bed", col.names = FALSE, sep = "\t")
+
+# plot mutation density around tfbs
+dt = data.table::fread("dist2tfbs_midpoint.bed", header = FALSE)
+summary(dt$V7)
+dt = dt[V7 != -1]
+
+n_tfbs = length(unique(paste(dt$V4, dt$V6, sep = "-")))
+
+dt$dist = dt$V3 - dt$V6
+dist = dt$dist[dt$V7 <= 100]
+
+save(dist, file = "tfbs_dist.RData")
+rm(list = ls()); gc()
+
+load(file = "tfbs_dist.RData")
+layout(matrix(1:2, nrow=1))
+hist(dist, breaks = 50,
+     xlab = "Distance (bp) to midpoint of TFBS", main = "Mutation histogram")
+plot(density(dist), xlab = "Distance (bp) to mcidpoint of TFBS", main = "Mutation density")
+layout(1)
+
+df = table(dist)
+df2 = data.table::data.table(
+  x = as.integer(names(df)),
+  y = as.integer(df) / n_tfbs
+)
+
+save(df2, file = "df2.RData")
+
+library(ggplot2)
+library(cowplot)
+p = ggplot(as.data.frame(df2), aes(x=x, y=y)) + 
+  geom_line() + labs(x = "Position relative to TFBS midpoint (bp)",
+                     y = "Mutation density") + cowplot::theme_cowplot()
+
+save_plot("Mutation_density_vs_TFBS_dist.pdf",
+          plot = p, base_aspect_ratio = 1.6)  
+
+##
 
 
 # 收集遗传变异相关性 ---------------------------------------------------------------
@@ -164,6 +245,7 @@ annot_Reptime      = "reptime_Mb.bed"
 annot_polII        = "polII_mb.bed"
 annot_mappability  = "mean_mb_mappability.tsv"
 annot_rec_rate     = "rec_rate.tsv"
+# Modify TFBS to distance from mutation to TFBS midpoint
 annot_tfbs         = "tfbs_mb.bed"
 
 annot = c(annot_CpG, annot_GC, annot_conservation, annot_Reptime,
@@ -190,7 +272,7 @@ add_coverage(region.promoter, mut_promoter, "1M_mut_promoter_add_cov.tsv")
 add_coverage(region.nonpromoter, mut_nonpromoter, "1M_mut_nonpromoter_add_cov.tsv")
 
 # calculate coverage
-system("bedtools coverage -a sorted_hg19_1M.bed -b merged_sorted_cds_region.bed   > test_cov2.bed")
+#system("bedtools coverage -a sorted_hg19_1M.bed -b merged_sorted_cds_region.bed   > test_cov2.bed")
 
 # join by x with V4
 # V4, V4, V1, V4, V1, V1, V4, V1
@@ -277,7 +359,8 @@ library(ggplot2)
 library(cowplot)
 library(RColorBrewer)
 
-ggplot(cor_genetic_df, aes(x = features, y = coeff, fill=region)) +
+ggplot(cor_genetic_df[features != "TFBS"],
+       aes(x = features, y = coeff, fill=region)) +
   geom_bar(stat = "identity", position = "dodge") +
   scale_fill_brewer(palette = "Paired", 
                     labels = c("Coding", "Noncoding", 
@@ -285,7 +368,9 @@ ggplot(cor_genetic_df, aes(x = features, y = coeff, fill=region)) +
   labs(x = "Genetic features", y = "Correlation coefficient", fill = "Region") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p_genetic
 
-save_plot("Genetic_corrplot3.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
+save_plot("Genetic_corrplot_rm_TFBS.pdf", plot = p_genetic, base_aspect_ratio = 1.6)  
+
+save(cor_genetic_df, file = "cor_genetic_df.RData")
 
 cor_genetic_df2 = cor_genetic_df
 setnames(cor_genetic_df2,
