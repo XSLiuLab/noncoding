@@ -71,9 +71,10 @@ cross_val <- function(df, result_name)
 	###画ROC曲线
 	library(pROC)
 	true_value <- testi$Y
+        pdf(paste0("roc_", sub("\\.RData", "", result_name), ".pdf"), width = 7, height = 7)
 	plot.roc(true_value, predicti., legacy.axes=TRUE, grid=c(0.1, 0.2),
 	print.auc=TRUE, max.auc.polygon=TRUE, print.thres= F, ci = TRUE) 
-
+        dev.off()
 	###保存训练模型
 	save(prei, file = result_name)
 }

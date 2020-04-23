@@ -3,3 +3,4 @@
 bigwig/
 epi/
 *final_result.tsv
+*.RData

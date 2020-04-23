@@ -47,12 +47,16 @@ modify_tfbs = function(proj_file) {
   
   dt_update = merge(dt, dist_dt, 
                     by = c("V1", "V3"), all.x = TRUE)
-  
+  dt_update$V9 = dt_update$score
+  dt_update$score = NULL
+  ## Correct the order
+  dt_update = dt_update[, c(1, 3, 2, 4:ncol(dt_update)), with = F]
   message("Done. Outputting result file.")
   result_file = paste0("update_", basename(proj_file))
   fwrite(dt_update, 
          file = result_file, 
          col.names = TRUE, sep = "\t")
+  gc()
   return(result_file)
 }
 
@@ -93,9 +97,16 @@ names(file_list) = names(type_list)
 call_model = function(proj_index) {
   timer <- Sys.time()
   message("Calling model for cancer type: ", proj_index)
+  result_file = paste0("logit_", proj_index, ".RData")
+
+  if (file.exists(result_file)) {
+    message("The result has been called!")
+    return(NULL)
+  }
+
   modified_file = modify_tfbs(file_list[[proj_index]])
   mut <- logit_form(type_list[[proj_index]], modified_file)
-  if (proj_index %in% c("breast", "pancreas", "kidney", "ovary", "melanomac")) {
+  if (proj_index %in% c("breast", "pancreas", "kidney", "ovary", "melanoma")) {
     ## Add dnase data
     dnase_file = switch(
       proj_index,
@@ -110,10 +121,11 @@ call_model = function(proj_index) {
     mut <- add_dnase(mut, dnase_file)
   }
   mut <- format_trans(mut)
-  cross_val(mut, paste0("logit_", proj_index, ".RData"))
+  cross_val(mut, result_file)
   message("Done")
+  gc()
   file.remove(modified_file)
-  Sys.time() - timer
+  message(Sys.time() - timer)
 }
 
 cancer_type = c("blood", "breast", "esophagus",
