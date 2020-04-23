@@ -127,8 +127,8 @@ logit_form <- function(project,file_name, donor = "~/paper/lasso/id_pro_index.ts
 
 pos_anno <- function(pos_file, anno_file, result_file)
 {
-    temp1 <- paste("sorted_", pos_file, sep = "")
-	temp2 <- paste("sorted_", anno_file, sep = "")
+  temp1 <- paste("sorted_", basename(pos_file), sep = "")
+	temp2 <- paste("sorted_", basename(anno_file), sep = "")
 	cmd1 <- paste("sort -k 1,1 -k 2,2n ",pos_file," > ",temp1, sep = "")
 	cmd2 <- paste("sort -k 1,1 -k 2,2n ",anno_file," > ",temp2, sep = "")
 	system(cmd1)
@@ -145,7 +145,8 @@ pos_anno <- function(pos_file, anno_file, result_file)
 add_dnase <- function(df,file_names)
 {
 	df <- df[,-c(1,dim(df)[2])]
-	write.table(df,"pos.bed", sep = "\t", row.names = F, quote = F, col.names = F)
+	data.table::fwrite(df, file = "pos.bed", 
+	                   sep = "\t", col.names = F)
 	pos_anno("pos.bed", file_names, "raw_add.bed")
 	
 	raw_add <- fread("raw_add.bed", stringsAsFactors = F, data.table = F)
