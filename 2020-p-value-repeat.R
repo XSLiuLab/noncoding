@@ -99,10 +99,10 @@ call_model = function(proj_index) {
   message("Calling model for cancer type: ", proj_index)
   result_file = paste0("logit_", proj_index, ".RData")
 
-  if (file.exists(result_file)) {
-    message("The result has been called!")
-    return(NULL)
-  }
+  #if (file.exists(result_file)) {
+ #   message("The result has been called!")
+ #   return(NULL)
+ # }
 
   modified_file = modify_tfbs(file_list[[proj_index]])
   mut <- logit_form(type_list[[proj_index]], modified_file)
@@ -120,11 +120,26 @@ call_model = function(proj_index) {
     message("Adding dnase data...")
     mut <- add_dnase(mut, dnase_file)
   }
+  loc_info = mut[, c("donor", "chr", "end")]
+  message("print loc...")
+  print(head(loc_info))
+  print(dim(loc_info))
+  save(loc_info, file = paste0("logit_loc_", proj_index, ".RData"))
   mut <- format_trans(mut)
+  message("print model input data...")
+  print(head(mut))
+  print(dim(mut))
+  save(mut, file = paste0("logit_input_", proj_index, ".RData"))
+  file.remove(modified_file)
+  #cross_val(mut, result_file)
+  if (file.exists(result_file)) {
+    message("The result has been called!")
+    return(NULL)
+  }
   cross_val(mut, result_file)
   message("Done")
   gc()
-  file.remove(modified_file)
+  #file.remove(modified_file)
   message(Sys.time() - timer)
 }
 
