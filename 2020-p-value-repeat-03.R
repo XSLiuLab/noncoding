@@ -44,3 +44,9 @@ final_dt$i.start <- NULL
 head(final_dt)
 
 saveRDS(final_dt, file = "final_mutation_regions.rds")
+
+gtf_dt = fread("~/zhangjing_20200416/tmp_dat/Homo_sapiens.GRCh37.75.gtf",
+               skip = 5, header = FALSE)
+
+p_dt = final_dt[, .(p_val = 1 - poibin::ppoibin(freq - 1, prob)),
+         by = region_midpoint]
