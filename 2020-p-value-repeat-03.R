@@ -52,8 +52,6 @@ head(final_dt)
 
 saveRDS(final_dt, file = "final_mutation_regions.rds")
 
-# gtf_dt = fread("~/zhangjing_20200416/tmp_dat/Homo_sapiens.GRCh37.75.gtf",
-#                skip = 5, header = FALSE)
 
 library(data.table)
 final_dt <- readRDS("final_mutation_regions.rds")
@@ -87,7 +85,6 @@ length(unique(final_dt$mut_index))
 length(unique(final_dt$region_midpoint))
 
 prob_point = prob_point[order(p_val)]
-openxlsx::write.xlsx(prob_point, file = "PointMutationList.xlsx")
 
 ## Get region prob
 region_df <- merge(unique(final_dt[, .(region_midpoint, mut_index, donor)]),
@@ -111,4 +108,62 @@ prob_region[, p_val := ifelse(p_val < .Machine$double.xmin,
 prob_region = prob_region[order(p_val)]
 prob_region
 
-openxlsx::write.xlsx(prob_region, file = "RegionMutationList.xlsx")
+
+## Annotate records
+# system(" cat ~/predict_prob/Homo_sapiens.GRCh37.75.gtf | grep gene | grep protein_coding > protein_coding_genes.tsv")
+gene_dt <- fread("f:/zhangjing/protein_coding_genes.tsv", header = F)
+gene_dt <- gene_dt[V3 == "gene"]
+
+extract_col <- function(x, name) {
+  library(magrittr)
+  stringr::str_extract(x, paste0(name, " ([^;]+);")) %>%
+    stringr::str_remove(paste0(name, " ")) %>%
+    stringr::str_remove_all("\"") %>%
+    stringr::str_remove(";")
+}
+
+gene_dt[, gene_name := extract_col(V9, "gene_name")]
+gene_df = gene_dt[, .(V1, V4, gene_name)]
+colnames(gene_df) = c("chr", "start", "gene_name")
+save(gene_df, file = "gene_df.RData")
+
+
+gene_df[, chr := paste0("chr",chr)]
+gene_df[, gene_start := start][, `:=`(start = gene_start - 5000, end = gene_start + 500)]
+
+prob_point = tidyr::separate(prob_point, col = "mut_index", into = c("chr", "start"), sep = ":")
+prob_point = as.data.table(prob_point)
+prob_point[, end := start]
+prob_point[, `:=`(start = as.integer(start), end = as.integer(end))]
+
+setkey(gene_df, chr, start, end)
+
+prob_point_final <- foverlaps(
+  prob_point,
+  gene_df,
+  type = "within"
+)
+
+prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, i.start, p_val, donor_list)][order(p_val)]
+prob_point_final$count = stringr::str_count(prob_point_final$donor_list, ",") + 1
+
+openxlsx::write.xlsx(prob_point_final, file = "PointMutationList.xlsx")
+
+
+prob_region = tidyr::separate(prob_region, col = "region_midpoint", into = c("chr", "midpoint"), sep = ":")
+prob_region = as.data.table(prob_region)
+prob_region[, midpoint := as.integer(midpoint)][, start := midpoint - 5][, end := midpoint + 5]
+
+prob_region_final <- foverlaps(
+  prob_region,
+  gene_df,
+  type = "within"
+)
+
+prob_region_final = prob_region_final[!is.na(gene_name)][
+  , .(gene_name, chr, midpoint, p_val, donor_list)][
+    order(p_val)]
+prob_region_final$count = stringr::str_count(prob_region_final$donor_list, ",") + 1
+
+openxlsx::write.xlsx(prob_region_final, file = "RegionMutationList.xlsx")
+
