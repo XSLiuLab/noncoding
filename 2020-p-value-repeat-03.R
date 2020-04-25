@@ -100,7 +100,8 @@ cal_region_p = function(p) {
 }
 
 prob_region <- region_df[, .(p_val = cal_region_p(p_val),
-                             donor_list = paste(donor, collapse = ",")),
+                             donor_list = paste(donor, collapse = ","),
+                             mutation_list = paste(unique(mut_index), collapse = ",")),
                          by = .(region_midpoint)]
 
 ## Set 0 to minimal p value
