@@ -55,12 +55,59 @@ saveRDS(final_dt, file = "final_mutation_regions.rds")
 # gtf_dt = fread("~/zhangjing_20200416/tmp_dat/Homo_sapiens.GRCh37.75.gtf",
 #                skip = 5, header = FALSE)
 
+library(data.table)
+final_dt <- readRDS("final_mutation_regions.rds")
 ## Add a weight to prob for each donor to get sample-specific prob as Prof.Liu and JingZhang devised.
-## TODO
+#system("zcat final_mutation.tsv.gz | cut -f 1 | sort | uniq -c | sed 's/^[ \t]*//g' | sed 's/ /\t/g' > donor_noncoding_mut_freq.tsv")
+donor_freq <- fread("donor_noncoding_mut_freq.tsv", header = FALSE)
+colnames(donor_freq) <- c("freq", "donor")
+donor_freq[, weight := freq / sum(freq)]
 
+final_dt <- merge(final_dt, donor_freq, by = "donor", all.x = TRUE)
+final_dt[, prob := prob * weight]
+any(is.na(final_dt$prob))
+final_dt[, c("freq", "weight") := NULL]
 
 ## Get mutation-specific prob
-prob_mut <- final_dt[, .(p_val = 1 - poibin::ppoibin(unique(freq) - 1, prob)),
+## prob x >= K (K is the mutation freq, so here minus 1)
+## ppoibin is used to get Pr(x<K)
+final_dt2 <- unique(final_dt[, .(donor, prob, mut_index)])
+prob_point <- final_dt2[, .(p_val = 1 - poibin::ppoibin(length(donor) - 1, prob),
+                           donor_list = paste(donor, collapse = ",")),
                      by = .(mut_index)]
-prob_mut
-prob_mut$mut_index[duplicated(prob_mut$mut_index)]
+prob_point
+prob_point$mut_index[duplicated(prob_point$mut_index)]
+
+## Set 0 to minimal p value
+prob_point[, p_val := ifelse(p_val < .Machine$double.xmin, 
+                             .Machine$double.xmin,
+                             p_val)]
+
+length(unique(final_dt$mut_index))
+length(unique(final_dt$region_midpoint))
+
+prob_point = prob_point[order(p_val)]
+openxlsx::write.xlsx(prob_point, file = "PointMutationList.xlsx")
+
+## Get region prob
+region_df <- merge(unique(final_dt[, .(region_midpoint, mut_index, donor)]),
+                   prob_point[, .(mut_index, p_val)], 
+                   by = "mut_index", all.x = TRUE)
+region_df
+
+cal_region_p = function(p) {
+  1 - cumprod(1 - p)[length(p)]
+}
+
+prob_region <- region_df[, .(p_val = cal_region_p(p_val),
+                             donor_list = paste(donor, collapse = ",")),
+                         by = .(region_midpoint)]
+
+## Set 0 to minimal p value
+prob_region[, p_val := ifelse(p_val < .Machine$double.xmin, 
+                             .Machine$double.xmin,
+                             p_val)]
+prob_region = prob_region[order(p_val)]
+prob_region
+
+openxlsx::write.xlsx(prob_region, file = "RegionMutationList.xlsx")
