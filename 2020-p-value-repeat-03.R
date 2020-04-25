@@ -23,11 +23,16 @@ freq_dt$start = freq_dt$V2 - 5
 freq_dt$end = freq_dt$V2 + 5
 freq_dt$V2 = NULL
 freq_dt = freq_dt[, c("chr", "start", "end", "freq"), with = F]
+# must be unique
+freq_dt$freq = NULL
+freq_dt = unique(freq_dt)
 saveRDS(freq_dt, file = "recurrent_region.rds")
 
 ## Load all mutations
 mut_dt = fread("final_mutation.tsv.gz", header = FALSE)
 colnames(mut_dt) = c("donor", "chr", "end", "prob")
+# must be unique
+mut_dt = unique(mut_dt)
 mut_dt$start = mut_dt$end
 mut_dt = mut_dt[, c("chr", "start", "end", "prob", "donor"), with=F]
 
@@ -38,15 +43,24 @@ final_dt = foverlaps(mut_dt, freq_dt, type = "within")
 final_dt = final_dt[!is.na(start)]
 
 head(final_dt)
-final_dt[, region_midpoint := paste(chr, as.integer(i.end), sep = ":")]
+final_dt[, region_midpoint := paste(chr, as.integer(start + 5), sep = ":")]
 final_dt$i.start <- NULL
+final_dt[, mut_index := paste(chr, as.integer(i.end), sep = ":")]
+final_dt$i.end = NULL
 
 head(final_dt)
 
 saveRDS(final_dt, file = "final_mutation_regions.rds")
 
-gtf_dt = fread("~/zhangjing_20200416/tmp_dat/Homo_sapiens.GRCh37.75.gtf",
-               skip = 5, header = FALSE)
+# gtf_dt = fread("~/zhangjing_20200416/tmp_dat/Homo_sapiens.GRCh37.75.gtf",
+#                skip = 5, header = FALSE)
 
-p_dt = final_dt[, .(p_val = 1 - poibin::ppoibin(freq - 1, prob)),
-         by = region_midpoint]
+## Add a weight to prob for each donor to get sample-specific prob as Prof.Liu and JingZhang devised.
+## TODO
+
+
+## Get mutation-specific prob
+prob_mut <- final_dt[, .(p_val = 1 - poibin::ppoibin(unique(freq) - 1, prob)),
+                     by = .(mut_index)]
+prob_mut
+prob_mut$mut_index[duplicated(prob_mut$mut_index)]
