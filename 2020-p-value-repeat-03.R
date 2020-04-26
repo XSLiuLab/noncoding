@@ -1,3 +1,5 @@
+## Calculate p values for mutations and regions (freq>5)
+
 # Get the mutation frequency
 system(
   "cat pred*.tsv.gz | grep -v donor | grep -v mock | cut -f2,3 | sort | uniq -c | sort -n | gzip > final_mutation_freq.tsv.gz"
@@ -55,6 +57,10 @@ saveRDS(final_dt, file = "final_mutation_regions.rds")
 
 library(data.table)
 final_dt <- readRDS("final_mutation_regions.rds")
+
+library(magrittr)
+table(final_dt$mut_index) %>% sort(decreasing = TRUE) %>% head()
+
 ## Add a weight to prob for each donor to get sample-specific prob as Prof.Liu and JingZhang devised.
 #system("zcat final_mutation.tsv.gz | cut -f 1 | sort | uniq -c | sed 's/^[ \t]*//g' | sed 's/ /\t/g' > donor_noncoding_mut_freq.tsv")
 donor_freq <- fread("donor_noncoding_mut_freq.tsv", header = FALSE)
@@ -65,6 +71,9 @@ final_dt <- merge(final_dt, donor_freq, by = "donor", all.x = TRUE)
 final_dt[, prob := prob * weight]
 any(is.na(final_dt$prob))
 final_dt[, c("freq", "weight") := NULL]
+
+nrow(final_dt)
+nrow(unique(final_dt))
 
 ## Get mutation-specific prob
 ## prob x >= K (K is the mutation freq, so here minus 1)
@@ -97,7 +106,7 @@ cal_region_p = function(p) {
 }
 
 prob_region <- region_df[, .(p_val = cal_region_p(p_val),
-                             donor_list = paste(donor, collapse = ","),
+                             donor_list = paste(unique(donor), collapse = ","),
                              mutation_list = paste(unique(mut_index), collapse = ",")),
                          by = .(region_midpoint)]
 
@@ -111,7 +120,7 @@ prob_region
 
 ## Annotate records
 # system(" cat ~/predict_prob/Homo_sapiens.GRCh37.75.gtf | grep gene | grep protein_coding > protein_coding_genes.tsv")
-gene_dt <- fread("f:/zhangjing/protein_coding_genes.tsv", header = F)
+gene_dt <- fread("/Volumes/pan/zhangjing/protein_coding_genes.tsv", header = F)
 gene_dt <- gene_dt[V3 == "gene"]
 
 extract_col <- function(x, name) {
@@ -123,13 +132,18 @@ extract_col <- function(x, name) {
 }
 
 gene_dt[, gene_name := extract_col(V9, "gene_name")]
-gene_df = gene_dt[, .(V1, V4, gene_name)]
-colnames(gene_df) = c("chr", "start", "gene_name")
+gene_df = gene_dt[, .(V1, V4, V5, V7, gene_name)]
+colnames(gene_df) = c("chr", "start", "end", "strand", "gene_name")
 save(gene_df, file = "gene_df.RData")
 
 
-gene_df[, chr := paste0("chr",chr)]
-gene_df[, gene_start := start][, `:=`(start = gene_start - 5000, end = gene_start + 500)]
+gene_df[, chr := paste0("chr", chr)]
+gene_df[, gene_start := start]
+gene_df[, gene_end := end]
+gene_df[, `:=`(
+  start = ifelse(strand == "+", gene_start - 5000, gene_end + 1), 
+  end   = ifelse(strand == "+", gene_start - 1, gene_end + 5000)
+  )]
 
 prob_point = tidyr::separate(prob_point, col = "mut_index", into = c("chr", "start"), sep = ":")
 prob_point = as.data.table(prob_point)
@@ -144,11 +158,13 @@ prob_point_final <- foverlaps(
   type = "within"
 )
 
-prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, i.start, p_val, donor_list)][order(p_val)]
+prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, chr, i.start, p_val, donor_list)][order(p_val)]
 prob_point_final$count = stringr::str_count(prob_point_final$donor_list, ",") + 1
+prob_point_final = prob_point_final[order(count, decreasing = TRUE)]
+colnames(prob_point_final)[3] = "mut_position"
 
+save(prob_point_final, file = "PointMutationList.RData")
 openxlsx::write.xlsx(prob_point_final, file = "PointMutationList.xlsx")
-
 
 prob_region = tidyr::separate(prob_region, col = "region_midpoint", into = c("chr", "midpoint"), sep = ":")
 prob_region = as.data.table(prob_region)
@@ -157,13 +173,15 @@ prob_region[, midpoint := as.integer(midpoint)][, start := midpoint - 5][, end :
 prob_region_final <- foverlaps(
   prob_region,
   gene_df,
-  type = "within"
+  type = "any"
 )
 
 prob_region_final = prob_region_final[!is.na(gene_name)][
   , .(gene_name, chr, midpoint, p_val, donor_list)][
     order(p_val)]
 prob_region_final$count = stringr::str_count(prob_region_final$donor_list, ",") + 1
+prob_region_final = prob_region_final[order(count, decreasing = TRUE)]
 
+save(prob_region_final, file = "RegionMutationList.RData")
 openxlsx::write.xlsx(prob_region_final, file = "RegionMutationList.xlsx")
 
