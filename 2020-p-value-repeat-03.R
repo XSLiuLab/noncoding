@@ -58,6 +58,18 @@ saveRDS(final_dt, file = "final_mutation_regions.rds")
 library(data.table)
 final_dt <- readRDS("final_mutation_regions.rds")
 
+## Merge adjacent regions
+library(IRanges)
+region_dt = unique(final_dt[, .(chr, start, end, region_midpoint)])
+merged_dt = region_dt[, data.table::as.data.table(reduce(IRanges(start, end))), by = .(chr)]
+
+setkey(merged_dt, chr, start, end)
+final_dt = foverlaps(final_dt, merged_dt, type = "within")
+final_dt$i.start = NULL
+final_dt$i.end = NULL
+final_dt$region_midpoint = NULL
+final_dt[, region_range := paste0(chr, ":", start, "-", end)]
+
 library(magrittr)
 table(final_dt$mut_index) %>% sort(decreasing = TRUE) %>% head()
 
@@ -75,12 +87,13 @@ final_dt[, c("freq", "weight") := NULL]
 nrow(final_dt)
 nrow(unique(final_dt))
 
+final_dt = unique(final_dt)
 ## Get mutation-specific prob
 ## prob x >= K (K is the mutation freq, so here minus 1)
 ## ppoibin is used to get Pr(x<K)
 final_dt2 <- unique(final_dt[, .(donor, prob, mut_index)])
 prob_point <- final_dt2[, .(p_val = 1 - poibin::ppoibin(length(donor) - 1, prob),
-                           donor_list = paste(donor, collapse = ",")),
+                           donor_list = paste(unique(donor), collapse = ",")),
                      by = .(mut_index)]
 prob_point
 prob_point$mut_index[duplicated(prob_point$mut_index)]
@@ -96,19 +109,30 @@ length(unique(final_dt$region_midpoint))
 prob_point = prob_point[order(p_val)]
 
 ## Get region prob
-region_df <- merge(unique(final_dt[, .(region_midpoint, mut_index, donor)]),
-                   prob_point[, .(mut_index, p_val)], 
-                   by = "mut_index", all.x = TRUE)
-region_df
 
-cal_region_p = function(p) {
-  1 - cumprod(1 - p)[length(p)]
-}
+prob_region = final_dt[, .(prob = mean(prob) * width), 
+         by = .(donor, region_range)][,
+           .(p_val = 1 - poibin::ppoibin(.N - 1, prob),
+             donor_list = paste(unique(donor), collapse = ","),
+             count = .N),
+           by = region_range
+         ]
 
-prob_region <- region_df[, .(p_val = cal_region_p(p_val),
-                             donor_list = paste(unique(donor), collapse = ","),
-                             mutation_list = paste(unique(mut_index), collapse = ",")),
-                         by = .(region_midpoint)]
+### Method based on point prob 
+# region_df <- merge(unique(final_dt[, .(region_range, mut_index, donor)]),
+#                    prob_point[, .(mut_index, p_val)], 
+#                    by = "mut_index", all.x = TRUE)
+# region_df
+# 
+# cal_region_p = function(p) {
+#   1 - cumprod(1 - p)[length(p)]
+# }
+# 
+# prob_region <- region_df[, .(p_val = cal_region_p(p_val),
+#                              donor_list = paste(unique(donor), collapse = ","),
+#                              mutation_list = paste(unique(mut_index), collapse = ",")),
+#                          by = .(region_range)]
+### Method based on point prob 
 
 ## Set 0 to minimal p value
 prob_region[, p_val := ifelse(p_val < .Machine$double.xmin, 
@@ -120,22 +144,23 @@ prob_region
 
 ## Annotate records
 # system(" cat ~/predict_prob/Homo_sapiens.GRCh37.75.gtf | grep gene | grep protein_coding > protein_coding_genes.tsv")
-gene_dt <- fread("/Volumes/pan/zhangjing/protein_coding_genes.tsv", header = F)
-gene_dt <- gene_dt[V3 == "gene"]
+# gene_dt <- fread("/Volumes/pan/zhangjing/protein_coding_genes.tsv", header = F)
+# gene_dt <- gene_dt[V3 == "gene"]
+# 
+# extract_col <- function(x, name) {
+#   library(magrittr)
+#   stringr::str_extract(x, paste0(name, " ([^;]+);")) %>%
+#     stringr::str_remove(paste0(name, " ")) %>%
+#     stringr::str_remove_all("\"") %>%
+#     stringr::str_remove(";")
+# }
+# 
+# gene_dt[, gene_name := extract_col(V9, "gene_name")]
+# gene_df = gene_dt[, .(V1, V4, V5, V7, gene_name)]
+# colnames(gene_df) = c("chr", "start", "end", "strand", "gene_name")
+# save(gene_df, file = "gene_df.RData")
 
-extract_col <- function(x, name) {
-  library(magrittr)
-  stringr::str_extract(x, paste0(name, " ([^;]+);")) %>%
-    stringr::str_remove(paste0(name, " ")) %>%
-    stringr::str_remove_all("\"") %>%
-    stringr::str_remove(";")
-}
-
-gene_dt[, gene_name := extract_col(V9, "gene_name")]
-gene_df = gene_dt[, .(V1, V4, V5, V7, gene_name)]
-colnames(gene_df) = c("chr", "start", "end", "strand", "gene_name")
-save(gene_df, file = "gene_df.RData")
-
+load(file = "gene_df.RData")
 
 gene_df[, chr := paste0("chr", chr)]
 gene_df[, gene_start := start]
@@ -145,30 +170,31 @@ gene_df[, `:=`(
   end   = ifelse(strand == "+", gene_start - 1, gene_end + 5000)
   )]
 
-prob_point = tidyr::separate(prob_point, col = "mut_index", into = c("chr", "start"), sep = ":")
-prob_point = as.data.table(prob_point)
-prob_point[, end := start]
-prob_point[, `:=`(start = as.integer(start), end = as.integer(end))]
+# prob_point = tidyr::separate(prob_point, col = "mut_index", into = c("chr", "start"), sep = ":")
+# prob_point = as.data.table(prob_point)
+# prob_point[, end := start]
+# prob_point[, `:=`(start = as.integer(start), end = as.integer(end))]
+# 
+# setkey(gene_df, chr, start, end)
+# 
+# prob_point_final <- foverlaps(
+#   prob_point,
+#   gene_df,
+#   type = "within"
+# )
+# 
+# prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, chr, i.start, p_val, donor_list)][order(p_val)]
+# prob_point_final$count = stringr::str_count(prob_point_final$donor_list, ",") + 1
+# prob_point_final = prob_point_final[order(count, decreasing = TRUE)]
+# colnames(prob_point_final)[3] = "mut_position"
+# 
+# save(prob_point_final, file = "PointMutationList.RData")
+# writexl::write_xlsx(prob_point_final, path = "PointMutationList.xlsx")
 
-setkey(gene_df, chr, start, end)
-
-prob_point_final <- foverlaps(
-  prob_point,
-  gene_df,
-  type = "within"
-)
-
-prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, chr, i.start, p_val, donor_list)][order(p_val)]
-prob_point_final$count = stringr::str_count(prob_point_final$donor_list, ",") + 1
-prob_point_final = prob_point_final[order(count, decreasing = TRUE)]
-colnames(prob_point_final)[3] = "mut_position"
-
-save(prob_point_final, file = "PointMutationList.RData")
-openxlsx::write.xlsx(prob_point_final, file = "PointMutationList.xlsx")
-
-prob_region = tidyr::separate(prob_region, col = "region_midpoint", into = c("chr", "midpoint"), sep = ":")
+prob_region = tidyr::separate(prob_region, col = "region_range", into = c("chr", "start", "end"))
 prob_region = as.data.table(prob_region)
-prob_region[, midpoint := as.integer(midpoint)][, start := midpoint - 5][, end := midpoint + 5]
+prob_region$start = as.integer(prob_region$start)
+prob_region$end = as.integer(prob_region$end)
 
 prob_region_final <- foverlaps(
   prob_region,
@@ -177,10 +203,10 @@ prob_region_final <- foverlaps(
 )
 
 prob_region_final = prob_region_final[!is.na(gene_name)][
-  , .(gene_name, chr, midpoint, p_val, donor_list)][
+  , .(gene_name, chr, i.start, i.end, p_val, donor_list, count)][
     order(p_val)]
-prob_region_final$count = stringr::str_count(prob_region_final$donor_list, ",") + 1
 prob_region_final = prob_region_final[order(count, decreasing = TRUE)]
+colnames(prob_region_final)[3:4] = c("start", "end")
 
 save(prob_region_final, file = "RegionMutationList.RData")
 openxlsx::write.xlsx(prob_region_final, file = "RegionMutationList.xlsx")
