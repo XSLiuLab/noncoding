@@ -21,7 +21,7 @@ p1 = ggplot(prob_region_final[gene_name != "BCL2"], aes(x = count, y = p_value))
 
 p1
 
-ggsave(filename = "pvalue_vs_count.pdf", plot = p1, width = 7, height = 5)
+ggsave(filename = "pvalue_vs_count.pdf", plot = p1, width = 6, height = 5)
 
 
 # p1 = ggplot(prob_region_final, aes(x = count, y = p_value)) + 

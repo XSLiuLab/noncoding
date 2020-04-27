@@ -19,7 +19,8 @@ table(freq_dt$chr)
 freq_dt$freq = sub("([0-9]+) chr.*", "\\1", freq_dt$V1)
 freq_dt$freq = as.integer(freq_dt$freq)
 
-freq_dt = freq_dt[freq > 5]
+## Set the frequency threshold
+freq_dt = freq_dt[freq > 3]
 freq_dt$V1 = NULL
 freq_dt$start = freq_dt$V2 - 5
 freq_dt$end = freq_dt$V2 + 5
@@ -170,26 +171,26 @@ gene_df[, `:=`(
   end   = ifelse(strand == "+", gene_start - 1, gene_end + 5000)
   )]
 
-# prob_point = tidyr::separate(prob_point, col = "mut_index", into = c("chr", "start"), sep = ":")
-# prob_point = as.data.table(prob_point)
-# prob_point[, end := start]
-# prob_point[, `:=`(start = as.integer(start), end = as.integer(end))]
-# 
-# setkey(gene_df, chr, start, end)
-# 
-# prob_point_final <- foverlaps(
-#   prob_point,
-#   gene_df,
-#   type = "within"
-# )
-# 
-# prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, chr, i.start, p_val, donor_list)][order(p_val)]
-# prob_point_final$count = stringr::str_count(prob_point_final$donor_list, ",") + 1
-# prob_point_final = prob_point_final[order(count, decreasing = TRUE)]
-# colnames(prob_point_final)[3] = "mut_position"
-# 
-# save(prob_point_final, file = "PointMutationList.RData")
-# writexl::write_xlsx(prob_point_final, path = "PointMutationList.xlsx")
+prob_point = tidyr::separate(prob_point, col = "mut_index", into = c("chr", "start"), sep = ":")
+prob_point = as.data.table(prob_point)
+prob_point[, end := start]
+prob_point[, `:=`(start = as.integer(start), end = as.integer(end))]
+
+setkey(gene_df, chr, start, end)
+
+prob_point_final <- foverlaps(
+  prob_point,
+  gene_df,
+  type = "within"
+)
+
+prob_point_final = prob_point_final[!is.na(gene_name)][, .(gene_name, chr, i.start, p_val, donor_list)][order(p_val)]
+prob_point_final$count = stringr::str_count(prob_point_final$donor_list, ",") + 1
+prob_point_final = prob_point_final[order(count, decreasing = TRUE)]
+colnames(prob_point_final)[3] = "mut_position"
+
+save(prob_point_final, file = "PointMutationList.RData")
+writexl::write_xlsx(prob_point_final, path = "PointMutationList.xlsx")
 
 prob_region = tidyr::separate(prob_region, col = "region_range", into = c("chr", "start", "end"))
 prob_region = as.data.table(prob_region)
